@@ -1,0 +1,136 @@
+box_slots:
+- assigned_digit: null
+  assigned_votes: 0
+  confirmed: true
+  counted_once: false
+  digit_votes:
+    0: 0
+    1: 0
+    2: 0
+    3: 0
+    4: 0
+    5: 0
+    6: 0
+    7: 0
+    8: 0
+    9: 0
+  hits: 12
+  id: 30
+  t_last_seen: 1894.866
+  x: 11.269935825831558
+  y: 1.435078595748756
+- assigned_digit: null
+  assigned_votes: 0
+  confirmed: true
+  counted_once: false
+  digit_votes:
+    0: 0
+    1: 0
+    2: 0
+    3: 0
+    4: 0
+    5: 0
+    6: 0
+    7: 0
+    8: 0
+    9: 0
+  hits: 11
+  id: 34
+  t_last_seen: 1894.864
+  x: 13.080909557536774
+  y: 2.478746355807913
+- assigned_digit: null
+  assigned_votes: 0
+  confirmed: false
+  counted_once: false
+  digit_votes:
+    0: 0
+    1: 0
+    2: 0
+    3: 0
+    4: 0
+    5: 0
+    6: 0
+    7: 0
+    8: 0
+    9: 0
+  hits: 2
+  id: 38
+  t_last_seen: 1894.864
+  x: 16.670948665063708
+  y: 0.04726999011729562
+- assigned_digit: null
+  assigned_votes: 0
+  confirmed: false
+  counted_once: false
+  digit_votes:
+    0: 0
+    1: 0
+    2: 0
+    3: 0
+    4: 0
+    5: 0
+    6: 0
+    7: 0
+    8: 0
+    9: 0
+  hits: 2
+  id: 39
+  t_last_seen: 1894.864
+  x: 19.09337379199075
+  y: 2.6062043889129742
+- assigned_digit: null
+  assigned_votes: 0
+  confirmed: false
+  counted_once: false
+  digit_votes:
+    0: 0
+    1: 0
+    2: 0
+    3: 0
+    4: 0
+    5: 0
+    6: 0
+    7: 0
+    8: 0
+    9: 0
+  hits: 2
+  id: 40
+  t_last_seen: 1894.864
+  x: 14.740788427689555
+  y: 2.139383527761221
+counts:
+  0: 0
+  1: 0
+  2: 0
+  3: 0
+  4: 0
+  5: 0
+  6: 0
+  7: 0
+  8: 0
+  9: 0
+most_read_count: 0
+most_read_digit: null
+num_detect_result:
+- 0
+- 0
+- 0
+- 0
+- 0
+- 0
+- 0
+- 0
+- 0
+- 0
+read_counts:
+  0: 0
+  1: 0
+  2: 0
+  3: 0
+  4: 0
+  5: 0
+  6: 0
+  7: 0
+  8: 0
+  9: 0

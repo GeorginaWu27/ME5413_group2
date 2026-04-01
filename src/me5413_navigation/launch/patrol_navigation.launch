@@ -1,0 +1,8 @@
+<launch>
+<node pkg="me5413_navigation"
+      type="patrol_waypoints.py"
+      name="patrol_waypoints"
+      output="screen">
+    <rosparam command="load" file="$(find me5413_navigation)/config/patrol_params.yaml" />
+</node>
+</launch>

@@ -1,0 +1,33 @@
+map_frame: map
+base_frame: base_link
+
+costmap_topic: /move_base/global_costmap/costmap
+amcl_topic: /amcl_pose
+
+loop_patrol: false
+retry_num: 1
+control_rate: 5.0
+
+default_timeout: 30.0
+default_tolerance: 0.7
+default_yaw_tolerance: 3.14
+default_required: false
+
+# 障碍物是 0.8m x 0.8m
+search_radii: [0.8, 1.0, 1.2, 1.5]
+search_angle_step_deg: 30.0
+
+# costmap 代价值 <= 20 才认为可放点
+free_cost_threshold: 20
+
+waypoints:
+  - {name: "p1", x: 8.994722366333008, y: 1.847963809967041, yaw: 0.0, tolerance: 3.14, required: false, timeout: 30.0}
+  - {name: "p2", x: 7.530865669250488, y: 8.900535583496094, yaw: 0.0, tolerance: 3.14, required: false, timeout: 30.0}
+  - {name: "p3", x: 7.2717204093933105, y: 13.375447273254395, yaw: 0, tolerance: 3.14, required: false, timeout: 30.0}
+  - {name: "p3", x: 16.2941951751709, y: 13.196778297424316, yaw: 0, tolerance: 3.14, required: false, timeout: 30.0}
+  - {name: "p4", x: 17.304832458496094, y: 2.2521514892578125, yaw: 0, tolerance: 3.14, required: false, timeout: 30.0}
+  - {name: "p5", x: 9.459264755249023, y: 1.5007705688476562, yaw: 0, tolerance: 3.14, required: false, timeout: 30.0}
+  - {name: "p6", x: 7.536535263061523, y: -1.222933053970337, yaw: -1.68, tolerance: 0.8, required: false, timeout: 30.0}
+  - {name: "p7", x: 10.190433502197266, y: -3.375058174133301, yaw: -0.0737, tolerance: 0.8, required: false, timeout: 30.0}
+  - {name: "p8", x: 30.396047592163086, y: -4.341438293457031, yaw: 0, tolerance: 3.14, required: false, timeout: 30.0}
+

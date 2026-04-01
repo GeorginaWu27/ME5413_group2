@@ -1,5 +1,7 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
+from move_base_msgs.msg import MoveBaseAction, MoveBaseGoal
+from std_msgs.msg import Int32
 
 import math
 import rospy
@@ -83,10 +85,24 @@ class SlopeModeController:
         self.fixed_cov_yaw_deg = rospy.get_param("~fixed_cov_yaw_deg", 25.0)
 
         self.publish_initialpose_on_flat = rospy.get_param("~publish_initialpose_on_flat", True)
+        
+        # ---------- 回到 NORMAL 后自动发送导航目标 ----------
+        self.auto_send_goal_on_normal = rospy.get_param("~auto_send_goal_on_normal", True)
 
+        self.normal_goal_x = rospy.get_param("~normal_goal_x", 32.10352325439453)
+        self.normal_goal_y = rospy.get_param("~normal_goal_y", 6.640366077423096)
+        self.normal_goal_z = rospy.get_param("~normal_goal_z", 0.0)
+
+        self.normal_goal_qx = rospy.get_param("~normal_goal_qx", 0.0)
+        self.normal_goal_qy = rospy.get_param("~normal_goal_qy", 0.0)
+        self.normal_goal_qz = rospy.get_param("~normal_goal_qz", -0.9974967402639787)
+        self.normal_goal_qw = rospy.get_param("~normal_goal_qw", 0.070712468226874)
+        
         # ---------- 状态 ----------
         self.mode = self.NORMAL
-
+        self.mode_pub = rospy.Publisher("~mode", Int32, queue_size=1, latch=True)
+        self.mode_pub.publish(Int32(self.mode))
+        
         self.has_imu = False
         self.has_scan = False
 
@@ -111,11 +127,11 @@ class SlopeModeController:
         self.cmd_pub = rospy.Publisher(self.cmd_vel_topic, Twist, queue_size=1)
         self.initialpose_pub = rospy.Publisher(self.initialpose_topic, PoseWithCovarianceStamped, queue_size=1)
 
-        rospy.loginfo("imu_topic: %s", self.imu_topic)
-        rospy.loginfo("scan_topic: %s", self.scan_topic)
-        rospy.loginfo("cmd_vel_topic: %s", self.cmd_vel_topic)
-        rospy.loginfo("initialpose_topic: %s", self.initialpose_topic)
-        rospy.loginfo("slope_target_yaw_deg: %.2f", self.slope_target_yaw_deg)
+        # rospy.loginfo("imu_topic: %s", self.imu_topic)
+        # rospy.loginfo("scan_topic: %s", self.scan_topic)
+        # rospy.loginfo("cmd_vel_topic: %s", self.cmd_vel_topic)
+        # rospy.loginfo("initialpose_topic: %s", self.initialpose_topic)
+        # rospy.loginfo("slope_target_yaw_deg: %.2f", self.slope_target_yaw_deg)
 
         rospy.loginfo("Waiting for move_base action server...")
         self.move_base_client = actionlib.SimpleActionClient("move_base", MoveBaseAction)
@@ -301,6 +317,7 @@ class SlopeModeController:
         self.flat_enter_time = None
         self.initialpose_sent_this_cycle = False
         self.last_left_error = 0.0
+        self.mode_pub.publish(Int32(self.mode))
         rospy.logwarn("Enter SLOPE_MODE.")
 
     def enter_relocalize(self):
@@ -322,6 +339,7 @@ class SlopeModeController:
         self.mode = self.RELOCALIZE
         self.rotate_accum = 0.0
         self.last_yaw = None
+        self.mode_pub.publish(Int32(self.mode))
         rospy.logwarn("Enter RELOCALIZE mode.")
 
     def exit_to_normal(self):
@@ -333,7 +351,13 @@ class SlopeModeController:
         self.last_yaw = None
         self.initialpose_sent_this_cycle = False
         self.last_left_error = 0.0
+        self.mode_pub.publish(Int32(self.mode))
         rospy.logwarn("Back to NORMAL mode.")
+
+        rospy.sleep(0.5)   # 可选，给 AMCL / move_base 一点恢复时间
+
+        if self.auto_send_goal_on_normal:
+            self.send_normal_goal()
 
     # =========================
     # 坡道模式控制
@@ -410,15 +434,15 @@ class SlopeModeController:
 
         self.publish_cmd(vx, wz)
 
-        rospy.loginfo_throttle(
-            0.5,
-            "mode=SLOPE tilt=%.2f front=%.2f front_left=%.2f left=%.2f right=%.2f vx=%.2f wz=%.2f yaw=%.2f target=%.2f",
-            self.get_tilt_deg(),
-            front_min, front_left_min, left_dist, right_min,
-            vx, wz,
-            math.degrees(self.yaw_rad),
-            self.slope_target_yaw_deg
-        )
+        # rospy.loginfo_throttle(
+        #     0.5,
+        #     "mode=SLOPE tilt=%.2f front=%.2f front_left=%.2f left=%.2f right=%.2f vx=%.2f wz=%.2f yaw=%.2f target=%.2f",
+        #     self.get_tilt_deg(),
+        #     front_min, front_left_min, left_dist, right_min,
+        #     vx, wz,
+        #     math.degrees(self.yaw_rad),
+        #     self.slope_target_yaw_deg
+        # )
 
         if self.flat_condition_met():
             rospy.logwarn("Flat ground detected, switching to relocalization.")
@@ -450,6 +474,32 @@ class SlopeModeController:
 
         self.publish_cmd(0.0, self.rotate_speed)
 
+    def send_normal_goal(self):
+        goal = MoveBaseGoal()
+        goal.target_pose.header.stamp = rospy.Time.now()
+        goal.target_pose.header.frame_id = "map"
+
+        goal.target_pose.pose.position.x = self.normal_goal_x
+        goal.target_pose.pose.position.y = self.normal_goal_y
+        goal.target_pose.pose.position.z = self.normal_goal_z
+
+        goal.target_pose.pose.orientation.x = self.normal_goal_qx
+        goal.target_pose.pose.orientation.y = self.normal_goal_qy
+        goal.target_pose.pose.orientation.z = self.normal_goal_qz
+        goal.target_pose.pose.orientation.w = self.normal_goal_qw
+
+        self.move_base_client.send_goal(goal)
+
+        rospy.logwarn(
+            "Sent goal after back to NORMAL mode: x=%.3f y=%.3f z=%.3f q=(%.3f, %.3f, %.3f, %.3f)",
+            self.normal_goal_x,
+            self.normal_goal_y,
+            self.normal_goal_z,
+            self.normal_goal_qx,
+            self.normal_goal_qy,
+            self.normal_goal_qz,
+            self.normal_goal_qw
+        )
     # =========================
     # 主循环
     # =========================
@@ -462,14 +512,14 @@ class SlopeModeController:
                 continue
 
             if self.mode == self.NORMAL:
-                rospy.loginfo_throttle(
-                    1.0,
-                    "mode=NORMAL tilt=%.2f roll=%.2f pitch=%.2f yaw=%.2f",
-                    self.get_tilt_deg(),
-                    math.degrees(self.roll_rad),
-                    math.degrees(self.pitch_rad),
-                    math.degrees(self.yaw_rad)
-                )
+                # rospy.loginfo_throttle(
+                #     1.0,
+                #     "mode=NORMAL tilt=%.2f roll=%.2f pitch=%.2f yaw=%.2f",
+                #     self.get_tilt_deg(),
+                #     math.degrees(self.roll_rad),
+                #     math.degrees(self.pitch_rad),
+                #     math.degrees(self.yaw_rad)
+                # )
                 if self.slope_condition_met():
                     self.enter_slope_mode()
 
