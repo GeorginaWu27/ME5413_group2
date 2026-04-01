@@ -1,0 +1,24 @@
+<launch>
+ 
+  <node pkg="move_base" type="move_base" respawn="false" name="move_base" output="screen">
+
+    <rosparam file="$(find me5413_navigation)/config/costmap_common_params.yaml" command="load" ns="global_costmap" />
+    <rosparam file="$(find me5413_navigation)/config/costmap_common_params.yaml" command="load" ns="local_costmap" />
+    
+    <rosparam file="$(find me5413_navigation)/config/local_costmap_params.yaml" command="load" />
+    <rosparam file="$(find me5413_navigation)/config/global_costmap_params.yaml" command="load" />
+    
+    <!-- <rosparam file="$(find me5413_navigation)/config/base_local_planner_params.yaml" command="load" /> -->
+    <rosparam file="$(find me5413_navigation)/config/teb_local_planner_params.yaml" command="load" />
+    <rosparam file="$(find me5413_navigation)/config/move_base_params.yaml" command="load" />
+    
+    <param name="base_global_planner" value="global_planner/GlobalPlanner" />
+    <param name="base_local_planner" value="teb_local_planner/TebLocalPlannerROS" /> 
+    <remap from="odom" to="odometry/filtered" />
+
+    <remap from="/move_base/GlobalPlanner/plan" to="/move_base/global_plan" />
+    <remap from="/move_base/TebLocalPlannerROS/local_plan" to="/move_base/local_plan" />
+    <remap from="/move_base/TebLocalPlannerROS/global_plan" to="/move_base/teb_global_plan" />
+  </node>
+
+</launch>

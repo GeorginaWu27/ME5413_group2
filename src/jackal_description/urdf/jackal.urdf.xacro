@@ -1,5 +1,9 @@
 <?xml version="1.0"?>
 <robot name="jackal" xmlns:xacro="http://www.ros.org/wiki/xacro">
+
+  <!-- Kinect macro -->
+  <xacro:include filename="$(find jackal_description)/urdf/accessories/kinect_gazebo.xacro"/>
+
   <xacro:property name="PI" value="3.1415926535897931" />
 
   <xacro:property name="wheelbase" value="0.262" />
@@ -123,7 +127,7 @@
         ixx="0.3136" ixy="-0.0008" ixz="0.0164"
         iyy="0.3922" iyz="-0.0009"
         izz="0.4485"/>
-      </inertial>
+    </inertial>
   </link>
 
   <xacro:unless value="$(optenv JACKAL_FRONT_ACCESSORY_FENDER 0)">
@@ -246,12 +250,23 @@
     <origin xyz="${mount_spacing} 0 0" />
   </joint>
 
+  <!-- Kinect fixed on front_mount -->
+  <xacro:property name="kinect_offset_x" value="0.15"/>
+  <xacro:property name="kinect_offset_y" value="0.0"/>
+  <xacro:property name="kinect_offset_z" value="0.013"/>
+
+  <joint name="kinect_joint" type="fixed">
+    <origin xyz="${kinect_offset_x} ${kinect_offset_y} ${kinect_offset_z}" rpy="0 0 0"/>
+    <parent link="front_mount"/>
+    <child link="kinect_link"/>
+  </joint>
+
+  <xacro:kinect_camera prefix="kinect"/>
+
   <!-- Bring in simulation data for Gazebo. -->
   <xacro:include filename="$(find jackal_description)/urdf/jackal.gazebo" />
 
-  <!-- Optional standard accessories, including their simulation data. The rendering
-       of these into the final description is controlled by optenv variables, which
-       default each one to off.-->
+  <!-- Optional standard accessories, including their simulation data. -->
   <xacro:include filename="$(find jackal_description)/urdf/accessories.urdf.xacro" />
 
   <!-- Optional custom includes. -->
@@ -259,4 +274,5 @@
 
   <!-- Optional for Clearpath internal softwares -->
   <xacro:include filename="$(optenv CPR_URDF_EXTRAS empty.urdf)" />
+
 </robot>

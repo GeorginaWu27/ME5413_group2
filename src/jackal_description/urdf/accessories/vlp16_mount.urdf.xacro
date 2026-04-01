@@ -11,52 +11,53 @@
             <box size="0.1 0.1 0.002" />
           </geometry>
           <material name="black" />
-          <origin xyz="0 0 -0.001" rpy="0 0 0" />
+          <origin xyz="0 0 0" rpy="0 0 0" />
         </visual>
       </link>
       
       <link name="${prefix}_vlp16_leg1">
         <visual>
           <geometry>
-            <cylinder length="${height}" radius="0.003" />
+            <!--changed the length of the leg-->
+            <cylinder length="${2*height}" radius="0.003" />
           </geometry>
           <material name="white">
             <color rgba="1 1 1 1" />
           </material>
-          <origin xyz="0 0 ${height/2}" rpy="0 0 0" />
+          <origin xyz="0 0 ${height}" rpy="0 0 0" />
         </visual>
       </link>
       <link name="${prefix}_vlp16_leg2">
         <visual>
           <geometry>
-            <cylinder length="${height}" radius="0.003" />
+            <cylinder length="${2*height}" radius="0.003" />
           </geometry>
           <material name="white">
             <color rgba="1 1 1 1" />
           </material>
-          <origin xyz="0 0 ${height/2}" rpy="0 0 0" />
+          <origin xyz="0 0 ${height}" rpy="0 0 0" />
         </visual>
       </link>
       <link name="${prefix}_vlp16_leg3">
         <visual>
           <geometry>
-            <cylinder length="${height}" radius="0.003" />
+            <cylinder length="${2*height}" radius="0.003" />
           </geometry>
           <material name="white">
             <color rgba="1 1 1 1" />
           </material>
-          <origin xyz="0 0 ${height/2}" rpy="0 0 0" />
+          <origin xyz="0 0 ${height}" rpy="0 0 0" />
         </visual>
       </link>
       <link name="${prefix}_vlp16_leg4">
         <visual>
           <geometry>
-            <cylinder length="${height}" radius="0.003" />
+            <cylinder length="${2*height}" radius="0.003" />
           </geometry>
           <material name="white">
             <color rgba="1 1 1 1" />
           </material>
-          <origin xyz="0 0 ${height/2}" rpy="0 0 0" />
+          <origin xyz="0 0 ${height}" rpy="0 0 0" />
         </visual>
       </link>
       <joint name="${prefix}_vlp16_mount_joint" type="fixed">
@@ -88,7 +89,7 @@
       <joint name="${prefix}_vlp16_plate_joint" type="fixed">
         <parent link="${prefix}_vlp16_mount" />
         <child link="${prefix}_vlp16_plate" />
-        <origin xyz="0 0 ${height}" rpy="0 0 0" />
+        <origin xyz="0 0 ${2*height}" rpy="0 0 0" />
       </joint>
 
       <xacro:VLP-16 parent="${prefix}_vlp16_plate" topic="${topic}">

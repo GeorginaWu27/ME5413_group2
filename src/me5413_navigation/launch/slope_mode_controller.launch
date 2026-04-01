@@ -1,0 +1,58 @@
+<launch>
+  <node pkg="me5413_navigation"
+        type="slope_mode_controller.py"
+        name="slope_mode_controller"
+        output="screen">
+
+    <param name="imu_topic" value="/imu/data"/>
+    <param name="scan_topic" value="/front/scan"/>
+    <param name="cmd_vel_topic" value="/cmd_vel"/>
+
+    <param name="slope_enter_deg" value="6.0"/>
+    <param name="slope_exit_deg" value="3.0"/>
+    <param name="enter_hold_sec" value="0.5"/>
+    <param name="exit_hold_sec" value="2.0"/>
+
+    <param name="forward_speed" value="0.8"/>
+    <param name="slow_speed" value="0.4"/>
+    <param name="turn_speed" value="1"/>
+    <param name="avoid_turn_speed" value="0.35"/>
+
+    <param name="front_block_dist" value="1.5"/>
+    <param name="front_slow_dist" value="2"/>
+    <param name="side_warn_dist" value="0.80"/>
+
+    <param name="front_angle_deg" value="10.0"/>
+    <param name="front_left_angle_deg" value="40.0"/>
+    <param name="side_angle_deg" value="55.0"/>
+
+    <param name="left_min_angle_deg" value="80.0"/>
+    <param name="left_max_angle_deg" value="110.0"/>
+    <param name="left_target_dist" value="0.5"/>
+    <param name="left_wall_kp" value="2"/>
+    <param name="left_wall_kd" value="0.6"/>
+    <param name="left_reacquire_dist" value="1.0"/>
+    <param name="left_max_follow_dist" value="2"/>
+
+    <param name="right_bypass_bias" value="0.35"/>
+    <param name="yaw_kp" value="0.80"/>
+    <param name="right_max_dist" value="5"/>
+
+    <param name="rotate_speed" value="0.30"/>
+    <param name="rotate_total_deg" value="90.0"/>
+    <param name="control_rate" value="15.0"/>
+
+    <param name="slope_target_yaw_deg" value="0.0"/>
+
+    <param name="use_fixed_initialpose" value="true"/>
+    <param name="fixed_pose_x" value="41"/>
+    <param name="fixed_pose_y" value="-3.32"/>
+    <param name="fixed_pose_yaw_deg" value="5.23"/>
+
+    <param name="fixed_cov_x" value="0.8"/>
+    <param name="fixed_cov_y" value="0.8"/>
+    <param name="fixed_cov_yaw_deg" value="25.0"/>
+
+    <param name="publish_initialpose_on_flat" value="true"/>
+  </node>
+</launch>
