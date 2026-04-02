@@ -1,15 +1,14 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
-import os
 import math
 import json
-import yaml
 import numpy as np
 import cv2
 import easyocr
 import rospy
 import tf
+import threading
 
 from cv_bridge import CvBridge
 from geometry_msgs.msg import PoseStamped, PointStamped
@@ -144,12 +143,10 @@ class BoxCounterPerception:
         # Visualization
         self.debug_view = rospy.get_param("~debug_view", True)
         self.debug_image_topic = rospy.get_param("~debug_image_topic", "/percep/debug_image")
+        self.debug_publish_rate = rospy.get_param("~debug_publish_rate", self.rate)
+        self._last_debug_pub_time = 0.0
 
         # Output
-        self.output_yaml = rospy.get_param(
-            "~output_yaml",
-            os.path.expanduser("~/5413/ME5413_Final_Project/src/me5413_world/records/box_counts.yaml")
-        )
         self.records_topic = rospy.get_param("~records_topic", "/percep/numbers")
         self.target_pose_topic = rospy.get_param("~target_pose_topic", "/percep/pose")
 
@@ -191,6 +188,11 @@ class BoxCounterPerception:
         self._last_robot_map_y = None
         self._pose_jump_thresh = rospy.get_param("~pose_jump_thresh", 0.3)  # 米
         self._loop_recovery_until = 0.0
+        self._ocr_result = []
+        self._ocr_input_frame = None
+        self._ocr_lock = threading.Lock()
+        self._ocr_thread = threading.Thread(target=self._ocr_worker, daemon=True)
+        self._ocr_thread.start()
 
         rospy.loginfo("Waiting for camera info on %s ...", self.camera_info_topic)
         camera_info = rospy.wait_for_message(self.camera_info_topic, CameraInfo)
@@ -388,7 +390,6 @@ class BoxCounterPerception:
             frame = self.img_curr.copy()
             vis_frame = frame.copy()
 
-            rot_mode = self.get_rotation_mode()
             self.check_pose_jump_and_merge()
 
             # if getattr(self, '_map_update_pending', False):
@@ -410,11 +411,11 @@ class BoxCounterPerception:
 
             detections = []
             if self.counting_enabled and rot_mode == "normal":
-                detections, vis_frame = self.detect_digits(frame)
-
-            detections = []
-            if self.counting_enabled and rot_mode == "normal":
-                detections, vis_frame = self.detect_digits(frame)
+                with self._ocr_lock:
+                    self._ocr_input_frame = frame.copy()
+                    detections = list(self._ocr_result)
+            else:
+                detections = []
 
             if self.enable_cone_trigger and self.counting_enabled:
                 cone_detections, cone_mask = self.detect_cones(frame)
@@ -473,7 +474,6 @@ class BoxCounterPerception:
 
             self.recompute_counts()
             self.publish_summary()
-            self.save_results()
 
             if self.debug_view:
                 self.draw_tracks(vis_frame)
@@ -679,6 +679,20 @@ class BoxCounterPerception:
             detections.append({"digit": int(text), "score": conf, "bbox": [x1, y1, x2, y2]})
 
         return detections, draw
+    
+    def _ocr_worker(self):
+        while not rospy.is_shutdown():
+            frame = None
+            with self._ocr_lock:
+                if self._ocr_input_frame is not None:
+                    frame = self._ocr_input_frame.copy()
+                    self._ocr_input_frame = None
+            if frame is None:
+                rospy.sleep(0.02)
+                continue
+            detections, _ = self.detect_digits(frame)
+            with self._ocr_lock:
+                self._ocr_result = detections
 
     def compute_bearing_in_lidar(self, u, v):
         direction = np.array([[u], [v], [1.0]], dtype=np.float64)
@@ -693,7 +707,7 @@ class BoxCounterPerception:
         p_in_cam.pose.orientation.w = 1.0
 
         try:
-            self.tf_listener.waitForTransform(self.lidar_frame, self.img_frame, rospy.Time(0), rospy.Duration(0.5))
+            # self.tf_listener.waitForTransform(self.lidar_frame, self.img_frame, rospy.Time(0), rospy.Duration(0.05))
             transformed = self.tf_listener.transformPose(self.lidar_frame, p_in_cam)
             return math.atan2(transformed.pose.position.y, transformed.pose.position.x)
         except Exception: return None
@@ -727,7 +741,7 @@ class BoxCounterPerception:
         p_in_lidar.pose.orientation.w = 1.0
 
         try:
-            self.tf_listener.waitForTransform(self.map_frame, self.lidar_frame, rospy.Time(0), rospy.Duration(0.5))
+            # self.tf_listener.waitForTransform(self.map_frame, self.lidar_frame, rospy.Time(0), rospy.Duration(0.05))
             p_in_map = self.tf_listener.transformPose(self.map_frame, p_in_lidar)
             x, y = p_in_map.pose.position.x, p_in_map.pose.position.y
             return (float(x), float(y)) if np.isfinite(x) and np.isfinite(y) else (None, None)
@@ -739,7 +753,7 @@ class BoxCounterPerception:
         p_in_lidar.point.x, p_in_lidar.point.y = x_l, y_l
 
         try:
-            self.tf_listener.waitForTransform(self.map_frame, self.lidar_frame, rospy.Time(0), rospy.Duration(0.5))
+            # self.tf_listener.waitForTransform(self.map_frame, self.lidar_frame, rospy.Time(0), rospy.Duration(0.05))
             p_in_map = self.tf_listener.transformPoint(self.map_frame, p_in_lidar)
             x, y = p_in_map.point.x, p_in_map.point.y
             return (float(x), float(y)) if np.isfinite(x) and np.isfinite(y) else (None, None)
@@ -1256,17 +1270,22 @@ class BoxCounterPerception:
         self.records_pub.publish(String(data=json.dumps(msg, ensure_ascii=False)))
 
     def publish_debug_image(self, image_bgr):
-        if image_bgr is not None:
-            try:
-                msg = self.bridge.cv2_to_imgmsg(image_bgr, encoding="bgr8")
-                msg.header.stamp = rospy.Time.now()
-                self.debug_image_pub.publish(msg)
-            except Exception: pass
+        if image_bgr is None:
+            return
 
-    def save_results(self):
-        os.makedirs(os.path.dirname(self.output_yaml), exist_ok=True)
-        with open(self.output_yaml, "w") as f:
-            yaml.safe_dump({"counts": self.counts, "read_counts": self.read_counts, "most_read_digit": self.most_read_digit, "most_read_count": self.most_read_count, "box_slots": self.box_slots, "num_detect_result": self.num_detect_result}, f, sort_keys=True)
+        now = rospy.Time.now().to_sec()
+        if self.debug_publish_rate > 0.0:
+            min_interval = 1.0 / float(self.debug_publish_rate)
+            if (now - self._last_debug_pub_time) < min_interval:
+                return
+
+        try:
+            msg = self.bridge.cv2_to_imgmsg(image_bgr, encoding="bgr8")
+            msg.header.stamp = rospy.Time.now()
+            self.debug_image_pub.publish(msg)
+            self._last_debug_pub_time = now
+        except Exception:
+            pass
 
     def draw_tracks(self, image):
         overlay = image.copy()
@@ -1295,7 +1314,6 @@ class BoxCounterPerception:
 
     def on_shutdown(self):
         self.recompute_counts()
-        self.save_results()
 
 if __name__ == "__main__":
     rospy.init_node("box_counter_perception")

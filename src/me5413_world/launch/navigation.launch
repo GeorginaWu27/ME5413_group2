@@ -17,7 +17,7 @@
   <include file="$(find me5413_navigation)/launch/slope_mode_controller.launch" />
 
   <!-- Launch vision -->
-  <!-- <include file="$(find me5413_world)/launch/perception.launch" /> -->
+  <include file="$(find me5413_world)/launch/perception.launch" />
 
   <!-- Launch line -->
   <include file="$(find me5413_navigation)/launch/patrol_navigation.launch" />

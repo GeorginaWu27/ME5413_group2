@@ -14,11 +14,51 @@ box_slots:
     7: 0
     8: 0
     9: 0
+  hits: 20
+  id: 54
+  t_last_seen: 1888.283
+  x: 5.602527459302135
+  y: 0.7364383569285919
+- assigned_digit: null
+  assigned_votes: 0
+  confirmed: true
+  counted_once: false
+  digit_votes:
+    0: 0
+    1: 0
+    2: 0
+    3: 0
+    4: 0
+    5: 0
+    6: 0
+    7: 0
+    8: 0
+    9: 0
   hits: 12
-  id: 30
-  t_last_seen: 1894.866
-  x: 11.269935825831558
-  y: 1.435078595748756
+  id: 42
+  t_last_seen: 1853.523
+  x: 15.611534096107283
+  y: 1.0832998926709119
+- assigned_digit: null
+  assigned_votes: 0
+  confirmed: true
+  counted_once: false
+  digit_votes:
+    0: 0
+    1: 0
+    2: 0
+    3: 0
+    4: 0
+    5: 0
+    6: 0
+    7: 0
+    8: 0
+    9: 0
+  hits: 12
+  id: 13
+  t_last_seen: 1795.781
+  x: 9.583969466989068
+  y: 7.337612199789565
 - assigned_digit: null
   assigned_votes: 0
   confirmed: true
@@ -35,13 +75,13 @@ box_slots:
     8: 0
     9: 0
   hits: 11
-  id: 34
-  t_last_seen: 1894.864
-  x: 13.080909557536774
-  y: 2.478746355807913
+  id: 35
+  t_last_seen: 1832.781
+  x: 18.44727956375377
+  y: 7.629881095793065
 - assigned_digit: null
   assigned_votes: 0
-  confirmed: false
+  confirmed: true
   counted_once: false
   digit_votes:
     0: 0
@@ -54,14 +94,14 @@ box_slots:
     7: 0
     8: 0
     9: 0
-  hits: 2
-  id: 38
-  t_last_seen: 1894.864
-  x: 16.670948665063708
-  y: 0.04726999011729562
+  hits: 9
+  id: 27
+  t_last_seen: 1806.24
+  x: 15.413262652096584
+  y: 13.159841789220916
 - assigned_digit: null
   assigned_votes: 0
-  confirmed: false
+  confirmed: true
   counted_once: false
   digit_votes:
     0: 0
@@ -74,31 +114,11 @@ box_slots:
     7: 0
     8: 0
     9: 0
-  hits: 2
-  id: 39
-  t_last_seen: 1894.864
-  x: 19.09337379199075
-  y: 2.6062043889129742
-- assigned_digit: null
-  assigned_votes: 0
-  confirmed: false
-  counted_once: false
-  digit_votes:
-    0: 0
-    1: 0
-    2: 0
-    3: 0
-    4: 0
-    5: 0
-    6: 0
-    7: 0
-    8: 0
-    9: 0
-  hits: 2
-  id: 40
-  t_last_seen: 1894.864
-  x: 14.740788427689555
-  y: 2.139383527761221
+  hits: 9
+  id: 33
+  t_last_seen: 1818.528
+  x: 19.723968314693938
+  y: 11.837685309069565
 counts:
   0: 0
   1: 0
