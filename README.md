@@ -97,17 +97,9 @@ sudo apt install -y \
   ros-noetic-jsk-rviz-plugins
 
 # Install required Python packages
-sudo apt update
-sudo apt install -y python3-empy
-python3 -m venv .venv
-source .venv/bin/activate
-python -m pip install --upgrade pip setuptools wheel
-python -m pip install numpy scipy matplotlib easyocr
+pip3 install numpy opencv-python easyocr scipy matplotlib
 
 # Build the workspace
-deactivate
-cd ~/ME5413_group2
-source /opt/ros/noetic/setup.bash
 catkin_make_isolated
 
 # Source
