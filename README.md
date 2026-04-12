@@ -76,8 +76,8 @@ This repo is a ROS workspace containing the following ROS packages:
 ```bash
 # Clone this repo
 cd ~
-git clone https://github.com/GeorginaWu27/ME5413.git
-cd ME5413_Final_Project
+git clone https://github.com/GeorginaWu27/ME5413_group2.git
+cd ME5413_Final_Project_group_2
 
 # Install all dependencies
 rosdep install --from-paths src --ignore-src -r -y
