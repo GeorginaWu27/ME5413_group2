@@ -3,6 +3,11 @@
 > Group Members: [WU ZIHAN](https://github.com/GeorginaWu27), [FENG YIXUAN](https://github.com/yixuanfeng15-lgtm), [QIAN YIWEI](https://github.com/qian-yiwei), and [WU YIFEI](https://github.com/wyffei)
 > 
 > Please find the main project at: https://github.com/NUS-Advanced-Robotics-Centre/ME5413_Final_Project
+
+## Demo video
+
+[Watch or download the demo video](./media/success.mp4)
+
 ## Tasks
 
 ![task_image](src/me5413_world/media/overview2526.png)
@@ -78,7 +83,11 @@ This repo is a ROS workspace containing the following ROS packages:
 cd ~
 git clone https://github.com/GeorginaWu27/ME5413_group2.git
 cd ME5413_group2
+```
 
+* Download the bags file from https://drive.google.com/file/d/1NHFYNkYMH1d5Fngifpc0DH4SxrK8I-Q0/view?usp=sharing, unzip it and put it under the same ME5413_group2 folder
+
+```
 # Install all dependencies
 rosdep install --from-paths src --ignore-src -r -y
 
@@ -294,3 +303,4 @@ cp /tmp/amcl_plots/* ~/ME5413_Final_Project/plots/
 ## License
 
 The [ME5413_Final_Project](https://github.com/NUS-Advanced-Robotics-Centre/ME5413_Final_Project) is released under the [MIT License](https://github.com/NUS-Advanced-Robotics-Centre/ME5413_Final_Project/blob/main/LICENSE).
+
