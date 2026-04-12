@@ -1,4 +1,4 @@
-# ME5413_Final_Project_group_2
+# ME5413_Final_Project_group_2, main project from https://github.com/NUS-Advanced-Robotics-Centre/ME5413_Final_Project
 
 > Group Members: [WU ZIHAN](https://github.com/GeorginaWu27), [FENG YIXUAN](https://github.com/yixuanfeng15-lgtm), [QIAN YIWEI](https://github.com/qian-yiwei), and [WU YIFEI](https://github.com/wyffei)
 
