@@ -98,7 +98,7 @@ sudo apt install -y \
 pip3 install numpy opencv-python easyocr scipy matplotlib
 
 # Build the workspace
-catkin_make_isolated --install
+catkin_make_isolated
 
 # Source
 source devel_isolated/setup.bash
@@ -138,7 +138,7 @@ There are two sources of models needed:
 cd ~/ME5413_group2
 
 # Build
-catkin_make_isolated --install
+catkin_make_isolated
 
 # Source
 source devel_isolated/setup.bash
