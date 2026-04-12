@@ -1,6 +1,6 @@
 # ME5413_Final_Project_group_2
 
-> Group Members: [WU ZIHAN](https://github.com/GeorginaWu27), [FENG YIXUAN](https://github.com/yixuanfeng15-lgtm), [QIAN YIWEI](https://github.com/qian-yiwei), and [WU YIFEI](https://github.com/wyffei)
+> Group Members: [WU ZIHAN](https://github.com/GeorginaWu27), [FENG YIXUAN](https://github.com/yixuanfeng15-lgtm), [QIAN YIWEI]( ), and [WU YIFEI](https://github.com/wyffei)
 
 ## Tasks
 
@@ -71,11 +71,12 @@ This repo is a ROS workspace containing the following ROS packages:
 * `teleop_twist_keyboard`
 * `third party`
 * `me5413_navigation`: navigation package for localization, planning, waypoint patrol, and evaluation
+* `cartographer`: mapping package for cartographer
 
 ```bash
 # Clone this repo
 cd ~
-git clone  网站
+git clone https://github.com/GeorginaWu27/ME5413.git
 cd ME5413_Final_Project
 
 # Install all dependencies
@@ -97,10 +98,10 @@ sudo apt install -y \
 pip3 install numpy opencv-python easyocr scipy matplotlib
 
 # Build the workspace
-catkin_make
+catkin_make_isolated --install
 
 # Source
-source devel/setup.bash
+source devel_isolated/setup.bash
 ```
 
 To properly load the Gazebo world, you will need to have the necessary model files in the `~/.gazebo/models/` directory.
@@ -137,10 +138,13 @@ There are two sources of models needed:
 cd ~/ME5413_Final_Project
 
 # Build
-catkin_make
+catkin_make_isolated --install
 
 # Source
-source devel/setup.bash
+source devel_isolated/setup.bash
+
+#Remove install_isolated
+
 ```
 
 ### 1. Load Gazebo world
@@ -149,6 +153,7 @@ This command launches Gazebo with the project world and random obstacles / task 
 
 ```bash
 # Launch Gazebo world together with the robot
+source devel_isolated/setup.bash
 roslaunch me5413_world world.launch
 ```
 
@@ -165,13 +170,63 @@ Mapping is optional for the final autonomous run because a map file is already p
 
 If you want to build or update the map manually, after launching **Step 1**, open a new terminal and run:
 
-改成你的
+**Steps to build cartographer**
 ```bash
 cd ~/ME5413_Final_Project
-source devel/setup.bash
-roslaunch me5413_world mapping.launch
+rosdep install --from-paths src --ignore-src -r -y
+
+cd src/third_party/cartographer/scripts
+#You may need to update the paths in the two .sh scripts to match your actual absolute paths.
+./install_abseil.sh
+
+#Cartographer use catkin_make_isolated to compile
+catkin_make_isolated --install
+#Remove install_isolated
 ```
 
+You can either drive the robot in Gazebo using the keyboard (see the terminal output for controls) to explore and build the map, or use a pre-recorded ROS bag for mapping.
+
+**Manually**
+```bash
+#In terminal 1:Launch the world
+cd ~/ME5413_Final_Project
+source devel_isolated/setup.bash
+roslaunch me5413_world world.launch
+
+#In terminal 2:Launch keyboard control
+cd ~/ME5413_Final_Project
+source devel_isolated/setup.bash
+roslaunch me5413_world manual.launch
+
+#In terminal 3:Launch cartographer
+cd ~/ME5413_Final_Project
+source devel_isolated/setup.bash
+roslaunch me5413_world cartographer_2d_IMU_ODOM_LI.launch
+```
+
+**Rosbag**
+```bash
+#In terminal 1:
+roscore
+
+#In terminal 2:
+cd your rosbag workspace
+rosparam set use_sim_time true
+
+#In terminal 3:
+roslaunch me5413_world cartographer_2d_IMU_ODOM_LI.launch
+
+#In terminal 2:
+rosbag play bag'sname  --clock
+
+```
+
+After finishing mapping, run the following command in the terminal to save the map:
+```bash
+# Save the map as `my_map` in the `maps/` folder
+roscd me5413_world/maps/
+rosrun map_server map_saver -f my_map map:=/map
+```
 ### 3. Navigation
 
 After launching **Step 1**, open a second terminal and run:
