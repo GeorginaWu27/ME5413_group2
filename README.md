@@ -81,6 +81,10 @@ cd ME5413_group2
 
 # Install all dependencies
 rosdep install --from-paths src --ignore-src -r -y
+sudo apt install -y \
+  ros-noetic-teb-local-planner \
+  ros-noetic-global-planner \
+  ros-noetic-cv-bridge
 
 # Sometimes there might be missing dependencies such as sensor drivers
 # and navigation plugins for the simulation
@@ -233,7 +237,7 @@ After launching **Step 1**, open a second terminal and run:
 
 ```bash
 cd ~/ME5413_Final_Project
-source devel/setup.bash
+source devel_isolated/setup.bash
 roslaunch me5413_world navigation.launch
 ```
 
