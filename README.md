@@ -221,7 +221,7 @@ rosparam set use_sim_time true
 roslaunch me5413_world cartographer_2d_IMU_ODOM_LI.launch
 
 #In terminal 2:
-rosbag play bag'sname  --clock
+rosbag play <bag's name>  --clock
 
 ```
 
