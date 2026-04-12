@@ -2,6 +2,8 @@
 # -*- coding: utf-8 -*-
 from move_base_msgs.msg import MoveBaseAction, MoveBaseGoal
 from std_msgs.msg import Int32
+from std_srvs.srv import Empty
+from dynamic_reconfigure.client import Client as DynClient
 
 import math
 import rospy
@@ -25,7 +27,7 @@ class SlopeModeController:
         self.scan_topic = rospy.get_param("~scan_topic", "/scan")
         self.cmd_vel_topic = rospy.get_param("~cmd_vel_topic", "/cmd_vel")
         self.initialpose_topic = rospy.get_param("~initialpose_topic", "/initialpose")
-
+        
         # ---------- 坡道判定参数 ----------
         self.slope_enter_deg = rospy.get_param("~slope_enter_deg", 6.0)
         self.slope_exit_deg = rospy.get_param("~slope_exit_deg", 3.0)
@@ -137,6 +139,22 @@ class SlopeModeController:
         self.move_base_client = actionlib.SimpleActionClient("move_base", MoveBaseAction)
         self.move_base_client.wait_for_server()
         rospy.loginfo("Connected to move_base action server.")
+
+        # ---------- 楼层/地图参数切换 ----------
+        self.current_floor = 1
+        self.global_map_config_applied = 1
+
+        # 一楼保持原参数
+        self.floor1_footprint_padding = rospy.get_param("~floor1_footprint_padding", 0.10)
+        self.floor1_inflation_radius = rospy.get_param("~floor1_inflation_radius", 0.30)
+        self.floor1_cost_scaling_factor = rospy.get_param("~floor1_cost_scaling_factor", 10.0)
+
+        # 二楼参数
+        self.floor2_footprint_padding = rospy.get_param("~floor2_footprint_padding", 0.18)
+        self.floor2_inflation_radius = rospy.get_param("~floor2_inflation_radius", 0.55)
+        self.floor2_cost_scaling_factor = rospy.get_param("~floor2_cost_scaling_factor", 6.0)
+
+        self.move_base_ns = rospy.get_param("~move_base_ns", "/move_base")
 
     # =========================
     # 回调
@@ -354,11 +372,70 @@ class SlopeModeController:
         self.mode_pub.publish(Int32(self.mode))
         rospy.logwarn("Back to NORMAL mode.")
 
-        rospy.sleep(0.5)   # 可选，给 AMCL / move_base 一点恢复时间
+        # 这里认为：出坡完成后已经到二楼
+        self.current_floor = 2
+        # 先切 global_costmap 参数
+        self.apply_global_costmap_params(self.current_floor)
 
+        rospy.sleep(0.5)   # 可选，给 AMCL / move_base 一点恢复时间
+        try:
+            rospy.wait_for_service('/move_base/clear_costmaps')
+            self.clear_costmaps_srv = rospy.ServiceProxy('/move_base/clear_costmaps', Empty)
+            self.clear_costmaps_srv()
+            rospy.logwarn("Cleared move_base costmaps after relocalization.")
+        except Exception as e:
+            rospy.logwarn("Failed to clear costmaps: %s", str(e))
+            
+        rospy.sleep(0.3)
         if self.auto_send_goal_on_normal:
             self.send_normal_goal()
+    
+    def apply_global_costmap_params(self, floor_id):
+        """
+        只动态调整 global_costmap：
+        1) footprint_padding
+        2) inflation_radius
+        3) cost_scaling_factor
+        """
+        try:
+            if floor_id == 2:
+                footprint_padding = self.floor2_footprint_padding
+                inflation_radius = self.floor2_inflation_radius
+                cost_scaling_factor = self.floor2_cost_scaling_factor
+            else:
+                footprint_padding = self.floor1_footprint_padding
+                inflation_radius = self.floor1_inflation_radius
+                cost_scaling_factor = self.floor1_cost_scaling_factor
 
+            # 1. global_costmap 本体参数
+            global_costmap_client = DynClient(
+                self.move_base_ns + "/global_costmap",
+                timeout=2.0
+            )
+            global_costmap_client.update_configuration({
+                "footprint_padding": footprint_padding
+            })
+
+            # 2. inflation layer 参数
+            inflation_client = DynClient(
+                self.move_base_ns + "/global_costmap/inflater_layer",
+                timeout=2.0
+            )
+            inflation_client.update_configuration({
+                "inflation_radius": inflation_radius,
+                "cost_scaling_factor": cost_scaling_factor
+            })
+
+            self.global_map_config_applied = floor_id
+
+            rospy.logwarn(
+                "Applied global_costmap params for floor %d: footprint_padding=%.3f, inflation_radius=%.3f, cost_scaling_factor=%.3f",
+                floor_id, footprint_padding, inflation_radius, cost_scaling_factor
+            )
+
+        except Exception as e:
+            rospy.logwarn("Failed to apply global_costmap params for floor %d: %s", floor_id, str(e))
+    
     # =========================
     # 坡道模式控制
     # =========================

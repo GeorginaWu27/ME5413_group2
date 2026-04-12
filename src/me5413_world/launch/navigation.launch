@@ -17,7 +17,23 @@
   <include file="$(find me5413_navigation)/launch/slope_mode_controller.launch" />
 
   <!-- Launch vision -->
-  <include file="$(find me5413_world)/launch/perception.launch" />
+  <!-- Perception: 一楼 box_counter（启动时自动调用） -->
+  <include file="$(find me5413_world)/launch/box_counter_perception.launch"/>
+  <!-- Perception Switcher：监听 cone trigger，锁定 counts，接管二楼进房逻辑 -->
+  <node pkg="me5413_world"
+        type="perception_switcher.py"
+        name="perception_switcher"
+        output="screen">
+    <!-- trigger -->
+    <param name="cone_trigger_topic"       value="/cmd_unblock" />
+    <param name="box_counter_node_name"    value="/box_counter_perception" />
+    <!-- counts & digit 来源 -->
+    <param name="records_topic"            value="/percep/numbers" />
+    <param name="current_seen_digit_topic" value="/percep/current_seen_digit" />
+    <!-- 进房间发布目标 -->
+    <param name="enter_room_topic"         value="/second_floor/enter_room" />
+    <param name="enter_trigger_topic"      value="/second_floor/enter_room_trigger" />
+  </node>
 
   <!-- Launch line -->
   <include file="$(find me5413_navigation)/launch/patrol_navigation.launch" />

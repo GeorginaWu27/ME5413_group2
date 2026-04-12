@@ -25,6 +25,11 @@
                 -param planar_box_description 
                 -model planar_box 
                 -x 6.0 -y 0.0 -z 3.5" />
+                
+        <!-- 启动时自动发布 respawn_objects 命令 (-1 表示发布一次后自动退出该节点) -->
+    <node pkg="rostopic" type="rostopic" name="respawn_objects_pub" 
+        args="pub -1 /rviz_panel/respawn_objects std_msgs/Int16 1" 
+        output="screen" />
     
     <!-- Load the destination configuration -->
     <rosparam command="load" file="$(find me5413_world)/config/config.yaml" />

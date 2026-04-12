@@ -14,7 +14,7 @@ from cv_bridge import CvBridge
 from geometry_msgs.msg import PoseStamped, PointStamped
 from nav_msgs.msg import Odometry, OccupancyGrid
 from sensor_msgs.msg import CameraInfo, Image, LaserScan
-from std_msgs.msg import String, Bool, Int32
+from std_msgs.msg import String, Bool
 from scipy.ndimage import distance_transform_edt
 
 class BoxCounterPerception:
@@ -108,7 +108,6 @@ class BoxCounterPerception:
         self.cone_max_aspect = rospy.get_param("~cone_max_aspect", 3.0)
 
         self.last_cone_trigger_time = -1e9
-        self._unblock_sent_once = False
 
         # Optional floor1 bounding box filter
         self.use_floor_filter = rospy.get_param("~use_floor_filter", False)
@@ -116,9 +115,6 @@ class BoxCounterPerception:
         self.floor_x_max = rospy.get_param("~floor_x_max", 1e9)
         self.floor_y_min = rospy.get_param("~floor_y_min", -1e9)
         self.floor_y_max = rospy.get_param("~floor_y_max", 1e9)
-
-        self.current_seen_digit_topic = rospy.get_param("~current_seen_digit_topic", "/percep/current_seen_digit")
-        self.current_seen_digit_pub = rospy.Publisher(self.current_seen_digit_topic, Int32, queue_size=1)
 
         # Occupancy map constraint
         self.use_occupancy_map_constraint = rospy.get_param("~use_occupancy_map_constraint", True)
@@ -224,12 +220,6 @@ class BoxCounterPerception:
         self.enable_counting_sub = rospy.Subscriber(
             self.enable_counting_topic, Bool, self.enable_counting_callback, queue_size=1
         )
-        # 冻结计数 topic
-        self.freeze_counts_topic = rospy.get_param("~freeze_counts_topic", "/percep/freeze_counts")
-        self._counts_frozen = False
-        self.freeze_counts_sub = rospy.Subscriber(
-            self.freeze_counts_topic, Bool, self._freeze_counts_cb, queue_size=1
-)
 
         rospy.on_shutdown(self.on_shutdown)
         rospy.loginfo("BoxCounterPerception initialized.")
@@ -273,12 +263,6 @@ class BoxCounterPerception:
         self.scan_msg_curr = msg
         self.scan_params_curr = {"angle_min": msg.angle_min, "angle_max": msg.angle_max, "angle_increment": msg.angle_increment}
     def enable_counting_callback(self, msg): self.counting_enabled = bool(msg.data)
-
-    def _freeze_counts_cb(self, msg):
-        if msg.data and not self._counts_frozen:
-            self._counts_frozen = True
-            self.pending_observations = []   # 清掉冻结前的短时观测缓存
-            rospy.logwarn("[BoxCounter] Counts FROZEN at: %s", str(self.counts))
 
     def get_current_yaw_rate(self):
         if self.curr_odom is None:
@@ -420,8 +404,7 @@ class BoxCounterPerception:
                 self.aggressive_merge_after_rotation()
             self._prev_rot_mode = rot_mode
 
-            # freeze 后不再更新任何 box slot，保留冻结时的可视化结果
-            if (not self._counts_frozen) and rot_mode != "freeze":
+            if rot_mode != "freeze":
                 self.update_box_slots_from_lidar(allow_new_slot=(rot_mode == "normal"))
                 self.clear_ghost_box_slots()
                 self.merge_duplicate_box_slots()
@@ -434,7 +417,7 @@ class BoxCounterPerception:
             else:
                 detections = []
 
-            if self.enable_cone_trigger and self.counting_enabled and (not self._counts_frozen):
+            if self.enable_cone_trigger and self.counting_enabled:
                 cone_detections, cone_mask = self.detect_cones(frame)
                 if len(cone_detections) > 0:
                     if self.debug_view:
@@ -473,43 +456,23 @@ class BoxCounterPerception:
                     continue
                 if not self.counting_enabled: continue
 
-                if not self.counting_enabled:
-                    continue
-
                 stable_obs = self.update_pending_observation(digit, map_x, map_y, score)
-                if stable_obs is None:
-                    continue
+                if stable_obs is None: continue
 
-                # =========================
-                # freeze 后：不再更新 slot / counts
-                # 只把“当前稳定看到的数字”发布出去，供 switcher 判断是否进入房间
-                # =========================
-                if self._counts_frozen:
-                    self.current_seen_digit_pub.publish(Int32(data=int(stable_obs["digit"])))
-                    continue
-
-                # =========================
-                # freeze 前：正常计数流程
-                # =========================
                 slot = self.assign_digit_to_box_slot(stable_obs)
 
                 if slot is not None and slot["assigned_digit"] is not None:
-                    self.current_seen_digit_pub.publish(Int32(data=int(slot["assigned_digit"])))
-
                     goal_p = PoseStamped()
                     goal_p.header.frame_id = self.map_frame
                     goal_p.header.stamp = rospy.Time.now()
                     goal_p.pose.position.x = slot["x"]
                     goal_p.pose.position.y = slot["y"]
                     goal_p.pose.position.z = 0.0
-                    if self.curr_odom is not None:
-                        goal_p.pose.orientation = self.curr_odom.pose.pose.orientation
-                    else:
-                        goal_p.pose.orientation.w = 1.0
+                    if self.curr_odom is not None: goal_p.pose.orientation = self.curr_odom.pose.pose.orientation
+                    else: goal_p.pose.orientation.w = 1.0
                     self.target_pose_pub.publish(goal_p)
 
-            if not self._counts_frozen:
-                self.recompute_counts()
+            self.recompute_counts()
             self.publish_summary()
 
             if self.debug_view:
@@ -1243,29 +1206,17 @@ class BoxCounterPerception:
         return None
 
     def maybe_trigger_cone_open(self, det, vis_frame=None):
-        # 只允许全局第一次 unblock 生效
-        if self._unblock_sent_once:
-            return False
-
         now = rospy.Time.now().to_sec()
-        if now - self.last_cone_trigger_time < self.cone_trigger_cooldown:
-            return False
-
-        yaw_lidar = self.compute_bearing_in_lidar(
-            0.5 * (det["bbox"][0] + det["bbox"][2]),
-            det["bbox"][3] - 0.1 * (det["bbox"][3] - det["bbox"][1])
-        )
-        if yaw_lidar is None:
-            return False
-
+        if now - self.last_cone_trigger_time < self.cone_trigger_cooldown: return False
+        
+        yaw_lidar = self.compute_bearing_in_lidar(0.5 * (det["bbox"][0] + det["bbox"][2]), det["bbox"][3] - 0.1 * (det["bbox"][3] - det["bbox"][1]))
+        if yaw_lidar is None: return False
+        
         distance, _ = self.get_scan_range_by_yaw(yaw_lidar)
-        if distance is None or distance > self.cone_trigger_distance:
-            return False
+        if distance is None or distance > self.cone_trigger_distance: return False
 
         self.cone_trigger_pub.publish(Bool(data=True))
         self.last_cone_trigger_time = now
-        self._unblock_sent_once = True
-        rospy.logwarn("[BoxCounter] First unblock sent. Future cone triggers will be ignored.")
         return True
 
     def update_most_read_digit(self):

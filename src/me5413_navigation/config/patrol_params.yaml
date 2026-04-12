@@ -27,7 +27,6 @@ waypoints:
   - {name: "p3", x: 16.2941951751709, y: 13.196778297424316, yaw: 0, tolerance: 3.14, required: false, timeout: 30.0}
   - {name: "p4", x: 17.304832458496094, y: 2.2521514892578125, yaw: 0, tolerance: 3.14, required: false, timeout: 30.0}
   - {name: "p5", x: 9.459264755249023, y: 1.5007705688476562, yaw: 0, tolerance: 3.14, required: false, timeout: 30.0}
-  - {name: "p6", x: 7.536535263061523, y: -1.222933053970337, yaw: -1.68, tolerance: 0.8, required: false, timeout: 30.0}
-  - {name: "p7", x: 10.190433502197266, y: -3.375058174133301, yaw: -0.0737, tolerance: 0.8, required: false, timeout: 30.0}
+  - {name: "p6", x: 6.826311111450195, y: -0.7005245685577393, yaw: -1.68, tolerance: 3.14, required: false, timeout: 30.0}
+  - {name: "p7", x: 12.762818336486816, y: -4.557191848754883, yaw: -0.0737, tolerance: 3.14, required: false, timeout: 30.0}
   - {name: "p8", x: 30.396047592163086, y: -4.341438293457031, yaw: 0, tolerance: 3.14, required: false, timeout: 30.0}
-
