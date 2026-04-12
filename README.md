@@ -1,6 +1,6 @@
 # ME5413_Final_Project_group_2
 
-> Group Members: [WU ZIHAN](https://github.com/GeorginaWu27), [FENG YIXUAN](https://github.com/yixuanfeng15-lgtm), [QIAN YIWEI]( ), and [WU YIFEI](https://github.com/wyffei)
+> Group Members: [WU ZIHAN](https://github.com/GeorginaWu27), [FENG YIXUAN](https://github.com/yixuanfeng15-lgtm), [QIAN YIWEI](https://github.com/qian-yiwei), and [WU YIFEI](https://github.com/wyffei)
 
 ## Tasks
 
