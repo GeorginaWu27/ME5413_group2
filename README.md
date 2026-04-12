@@ -96,7 +96,9 @@ sudo apt install -y \
   ros-noetic-jackal-control \
   ros-noetic-teb-local-planner \
   ros-noetic-global-planner \
-  ros-noetic-cv-bridge
+  ros-noetic-cv-bridge \
+  ros-noetic-rviz-imu-plugin \
+  ros-noetic-jsk-rviz-plugins
 
 # Install required Python packages
 pip3 install numpy opencv-python easyocr scipy matplotlib
