@@ -72,7 +72,6 @@ This repo is a ROS workspace containing the following ROS packages:
 * `teleop_twist_keyboard`: Use keyboard to manually control the Jackal robot
 * `third_party`: mapping package for cartographer
 * `me5413_navigation`: navigation package for localization, planning, waypoint patrol, and evaluation
-* `cartographer`: mapping package for cartographer
 
 ```bash
 # Clone this repo
@@ -254,7 +253,7 @@ Navigation module will also trigger perception module, including:
 
 The robot will then execute the task autonomously using the prepared map and world setup.
 
-### 4. Evaluation
+### 4. Evaluation for localization
 
 ```bash
 # Estimate tf between world frame and map frame manually
