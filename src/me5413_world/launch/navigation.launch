@@ -1,46 +1,47 @@
 <launch>
 
-  <!-- Connect the robot to a keyboard teleop controller -->
+  <!-- Connect the robot to a keyboard teleoperation controller -->
   <node name="teleop_twist_keyboard" pkg="teleop_twist_keyboard" type="mbot_teleop.py" output="screen" respawn="true"/>
 
   <!-- Run the map server -->
   <arg name="map_file" default="$(find me5413_world)/maps/world_map.yaml"/>
   <node name="map_server" pkg="map_server" type="map_server" args="$(arg map_file)" />
   
-  <!-- Launch the AMCL Localizer -->
+  <!-- Launch the AMCL localizer -->
   <include file="$(find me5413_navigation)/launch/amcl.launch" />
 
-  <!-- Launch Move Base -->
+  <!-- Launch move_base -->
   <include file="$(find me5413_navigation)/launch/move_base.launch" />
   
-  <!-- Launch slope mode controller -->
+  <!-- Launch the slope mode controller -->
   <include file="$(find me5413_navigation)/launch/slope_mode_controller.launch" />
 
-  <!-- Launch vision -->
-  <!-- Perception: 一楼 box_counter（启动时自动调用） -->
+  <!-- Launch perception modules -->
+  <!-- Perception: first-floor box_counter (automatically started at launch) -->
   <include file="$(find me5413_world)/launch/box_counter_perception.launch"/>
-  <!-- Perception Switcher：监听 cone trigger，锁定 counts，接管二楼进房逻辑 -->
+  <!-- Perception switcher: listens for the cone trigger, locks counts, and takes over second-floor room-entry logic -->
   <node pkg="me5413_world"
         type="perception_switcher.py"
         name="perception_switcher"
         output="screen">
-    <!-- trigger -->
+    <!-- Trigger topic -->
     <param name="cone_trigger_topic"       value="/cmd_unblock" />
     <param name="box_counter_node_name"    value="/box_counter_perception" />
-    <!-- counts & digit 来源 -->
+    <!-- Topics providing counts and current detected digit -->
     <param name="records_topic"            value="/percep/numbers" />
     <param name="current_seen_digit_topic" value="/percep/current_seen_digit" />
-    <!-- 进房间发布目标 -->
+    <!-- Topics for publishing room-entry targets -->
     <param name="enter_room_topic"         value="/second_floor/enter_room" />
     <param name="enter_trigger_topic"      value="/second_floor/enter_room_trigger" />
   </node>
 
-  <!-- Launch line -->
+  <!-- Launch line-following / patrol navigation -->
   <include file="$(find me5413_navigation)/launch/patrol_navigation.launch" />
   
-  <!-- Launch Rviz with our settings -->
+  <!-- Launch RViz with the predefined configuration -->
   <node type="rviz" name="rviz" pkg="rviz" args="-d $(find me5413_world)/rviz/navigation.rviz" output="log" respawn="true"/>
 
+  <!-- Publish navigation goals for the me5413_world namespace -->
   <node ns="me5413_world" pkg="me5413_world" type="goal_publisher_node" name="goal_publisher_node" output="screen" />
 
 </launch>

@@ -67,25 +67,25 @@ class BoxCounterPerception:
         self.enable_counting_topic = rospy.get_param("~enable_counting_topic", "/percep/enable_counting")
         self.counting_enabled = rospy.get_param("~counting_enabled_initial", False)
 
-        # lidar-only box-slot extraction
+        # LiDAR-only box-slot extraction
         self.box_slot_cluster_radius = rospy.get_param("~box_slot_cluster_radius", 0.5)
         self.box_slot_merge_radius = rospy.get_param("~box_slot_merge_radius", 0.5)
         self.box_slot_duplicate_radius = rospy.get_param("~box_slot_duplicate_radius", 0.42)
         self.box_slot_confirm_hits = rospy.get_param("~box_slot_confirm_hits", 8)
 
-        # 针对约 0.8m 的箱子，放宽下限以捕获畸变或单面/单边
-        # 放宽上限以捕获旋转对角线 (0.8*1.414 ≈ 1.13) + 误差
+        # For boxes around 0.8 m, relax the lower bound to capture distortion or single-face / single-edge observations.
+        # Relax the upper bound to capture rotated diagonals (0.8 * 1.414 ≈ 1.13) plus some tolerance.
         self.box_size_min = rospy.get_param("~box_size_min", 0.6)
         self.box_size_max = rospy.get_param("~box_size_max", 1.2)
         self.box_max_arc = rospy.get_param("~box_max_arc", 1.6)
 
-        # when counting is enabled, OCR observation must match existing lidar slot
+        # When counting is enabled, OCR observations must match an existing LiDAR slot.
         self.slot_assign_radius = rospy.get_param("~slot_assign_radius", 0.5)
 
         # Rotation gating
-        # |yaw_rate| <= yaw_no_new_slot_thresh: 正常更新
-        # yaw_no_new_slot_thresh < |yaw_rate| <= yaw_freeze_thresh: 不新建slot，不OCR
-        # |yaw_rate| > yaw_freeze_thresh: 完全冻结，不更新slot，不OCR
+        # |yaw_rate| <= yaw_no_new_slot_thresh: normal update
+        # yaw_no_new_slot_thresh < |yaw_rate| <= yaw_freeze_thresh: do not create new slots, disable OCR
+        # |yaw_rate| > yaw_freeze_thresh: fully freeze, do not update slots, disable OCR
         self.yaw_no_new_slot_thresh = rospy.get_param("~yaw_no_new_slot_thresh", 0.1)   # rad/s
         self.yaw_freeze_thresh = rospy.get_param("~yaw_freeze_thresh", 0.2)             # rad/s
 
@@ -110,7 +110,7 @@ class BoxCounterPerception:
         self.last_cone_trigger_time = -1e9
         self._unblock_sent_once = False
 
-        # Optional floor1 bounding box filter
+        # Optional floor-1 bounding box filter
         self.use_floor_filter = rospy.get_param("~use_floor_filter", False)
         self.floor_x_min = rospy.get_param("~floor_x_min", -1e9)
         self.floor_x_max = rospy.get_param("~floor_x_max", 1e9)
@@ -123,11 +123,11 @@ class BoxCounterPerception:
         # Occupancy map constraint
         self.use_occupancy_map_constraint = rospy.get_param("~use_occupancy_map_constraint", True)
         self.map_topic = rospy.get_param("~map_topic", "/map")
-        self.map_occupied_thresh = rospy.get_param("~map_occupied_thresh", 50)   # >=50 视为占据
+        self.map_occupied_thresh = rospy.get_param("~map_occupied_thresh", 50)   # >=50 is treated as occupied
         self.map_unknown_is_invalid = rospy.get_param("~map_unknown_is_invalid", True)
-        self.map_min_free_clearance = rospy.get_param("~map_min_free_clearance", 0.1)  # 米
+        self.map_min_free_clearance = rospy.get_param("~map_min_free_clearance", 0.1)  # meters
         self.map_snap_to_free = rospy.get_param("~map_snap_to_free", True)
-        self.map_snap_search_radius = rospy.get_param("~map_snap_search_radius", 0.45)   # 米
+        self.map_snap_search_radius = rospy.get_param("~map_snap_search_radius", 0.45)   # meters
 
         # Landmark-style online update
         self.landmark_assoc_radius = rospy.get_param("~landmark_assoc_radius", 0.65)
@@ -157,6 +157,9 @@ class BoxCounterPerception:
         # =========================
         # Internal State
         # =========================
+        # Core runtime state:
+        # stores the latest sensor data, current map, OCR state, box-slot landmarks,
+        # and counting results used by the main perception loop.
         self.bridge = CvBridge()
         self.img_curr = None
         self.curr_odom = None
@@ -166,7 +169,7 @@ class BoxCounterPerception:
         self.map_msg = None
         self.map_data = None              # int8[h, w]
         self.map_free_mask = None         # bool[h, w]
-        self.map_dist_m = None            # float[h, w], 到最近障碍/未知的距离(米)
+        self.map_dist_m = None            # float[h, w], distance to nearest obstacle/unknown (meters)
         self.map_resolution = None
         self.map_origin_x = None
         self.map_origin_y = None
@@ -190,7 +193,7 @@ class BoxCounterPerception:
         self._last_map_seq = -1
         self._last_robot_map_x = None
         self._last_robot_map_y = None
-        self._pose_jump_thresh = rospy.get_param("~pose_jump_thresh", 0.3)  # 米
+        self._pose_jump_thresh = rospy.get_param("~pose_jump_thresh", 0.3)  # meters
         self._loop_recovery_until = 0.0
         self._ocr_result = []
         self._ocr_input_frame = None
@@ -224,7 +227,7 @@ class BoxCounterPerception:
         self.enable_counting_sub = rospy.Subscriber(
             self.enable_counting_topic, Bool, self.enable_counting_callback, queue_size=1
         )
-        # 冻结计数 topic
+        # Freeze-count topic
         self.freeze_counts_topic = rospy.get_param("~freeze_counts_topic", "/percep/freeze_counts")
         self._counts_frozen = False
         self.freeze_counts_sub = rospy.Subscriber(
@@ -256,8 +259,9 @@ class BoxCounterPerception:
 
         self.map_free_mask = ~obstacle_mask
 
-        # 距离变换：每个free格到最近障碍/unknown的距离（单位：米）
-        # 对 obstacle_mask 做 EDT，需要输入“非障碍区域”为True
+        # Distance transform:
+        # for each free cell, compute distance to the nearest obstacle/unknown cell (meters).
+        # For EDT, the input should mark non-obstacle cells as True.
         self.map_dist_m = distance_transform_edt(self.map_free_mask) * self.map_resolution
 
         new_seq = msg.header.seq
@@ -277,7 +281,7 @@ class BoxCounterPerception:
     def _freeze_counts_cb(self, msg):
         if msg.data and not self._counts_frozen:
             self._counts_frozen = True
-            self.pending_observations = []   # 清掉冻结前的短时观测缓存
+            self.pending_observations = []   # Clear short-term observation cache before freezing.
             rospy.logwarn("[BoxCounter] Counts FROZEN at: %s", str(self.counts))
 
     def get_current_yaw_rate(self):
@@ -291,9 +295,9 @@ class BoxCounterPerception:
     def get_rotation_mode(self):
         """
         return:
-            "normal"       : 正常运行
-            "no_new_slot"  : 不新建slot，不OCR
-            "freeze"       : 完全冻结，不更新slot，不OCR
+            "normal"       : normal operation
+            "no_new_slot"  : do not create new slots, disable OCR
+            "freeze"       : fully freeze, do not update slots, disable OCR
         """
         yaw_rate = abs(self.get_current_yaw_rate())
 
@@ -314,26 +318,26 @@ class BoxCounterPerception:
         rospy.logwarn("Loop recovery triggered by %s, freeze-new/OCR for %.2fs",
                       reason, self.loop_recovery_duration)
 
-        # 1) 先清掉未确认slot，避免历史残影继续污染
+        # 1) Remove unconfirmed slots first to prevent stale artifacts from polluting the map.
         before = len(self.box_slots)
         self.box_slots = [s for s in self.box_slots if s.get("confirmed", False)]
         removed = before - len(self.box_slots)
         if removed > 0:
             rospy.loginfo("Loop recovery: removed %d unconfirmed slots", removed)
 
-        # 2) 对 confirmed slots 做一次更激进的重合并
+        # 2) Aggressively merge confirmed slots once after the event.
         self.aggressive_merge_after_rotation(radius=self.loop_recovery_merge_radius)
 
-        # 3) pending OCR 观测直接清空，避免旧坐标系下的pending继续写入
+        # 3) Clear pending OCR observations to avoid writing old-frame observations into the new map frame.
         self.pending_observations = []
 
     def get_rotation_mode_with_recovery(self):
         """
-        在原有 rotation gating 基础上，再叠加 loop recovery 保护期：
-        recovery 期间：
-          - 不新建 slot
-          - 不做 OCR
-          - 但允许已有 slot 被 LiDAR 复用更新
+        Add loop-recovery protection on top of the original rotation gating:
+        during recovery:
+          - do not create new slots
+          - do not run OCR
+          - but still allow LiDAR updates to reuse existing slots
         """
         if self.in_loop_recovery():
             return "no_new_slot"
@@ -341,9 +345,9 @@ class BoxCounterPerception:
 
     def best_digit_with_zero_guard(self, votes):
         """
-        在 best_digit_from_votes 基础上，对 0 做保守处理：
-        - 若 0 领先但优势不明显，则不直接给 0
-        - 更倾向返回次优的非0类别
+        Based on best_digit_from_votes, handle digit 0 more conservatively:
+        - if 0 leads but not by a clear margin, do not accept 0 directly
+        - prefer returning the next-best non-zero class
         """
         ranked = sorted([(d, votes.get(d, 0)) for d in range(10)],
                         key=lambda kv: kv[1], reverse=True)
@@ -351,15 +355,15 @@ class BoxCounterPerception:
         best_digit, best_votes = ranked[0]
         second_digit, second_votes = ranked[1]
 
-        # # 非0，照常
+        # # Non-zero digits are handled normally.
         # if best_digit != 0:
         #     return best_digit, best_votes
 
-        # # 0 票数太低，先不急着确认
+        # # If digit 0 does not have enough votes yet, delay confirmation.
         # if best_votes < (self.min_digit_votes + self.zero_digit_extra_votes):
         #     return second_digit, second_votes
 
-        # # 0 领先优势不够，也不直接信
+        # # If digit 0 does not lead by enough margin, do not trust it directly.
         # if (best_votes - second_votes) < self.zero_digit_margin:
         #     return second_digit, second_votes
 
@@ -367,7 +371,7 @@ class BoxCounterPerception:
 
     def clean_unconfirmed_slots_aggressive(self):
         """
-        用于大事件后手动清理未确认slot
+        Manually remove unconfirmed slots after a major event.
         """
         before = len(self.box_slots)
         self.box_slots = [s for s in self.box_slots if s.get("confirmed", False)]
@@ -376,7 +380,7 @@ class BoxCounterPerception:
             rospy.loginfo("Aggressive clean: removed %d unconfirmed slots", removed)
         
     def check_pose_jump_and_merge(self):
-        """检测 map frame 下机器人位置突变（回环校正信号）"""
+        """Detect abrupt robot position jumps in the map frame, which may indicate loop-closure correction."""
         if self.curr_odom is None:
             return
 
@@ -397,6 +401,9 @@ class BoxCounterPerception:
         self._last_robot_map_x, self._last_robot_map_y = rx, ry
 
     def run(self):
+        # Main perception loop:
+        # fuses RGB OCR, LiDAR geometry, TF projection, and map constraints
+        # to maintain box landmarks and publish digit-count summaries.
         rate = rospy.Rate(self.rate)
         while not rospy.is_shutdown():
             if self.img_curr is None or self.scan_curr is None or self.scan_params_curr is None or self.scan_msg_curr is None:
@@ -415,12 +422,12 @@ class BoxCounterPerception:
 
             rot_mode = self.get_rotation_mode_with_recovery()
 
-            # 检测旋转结束边沿
+            # Detect the end of a rotation interval.
             if self._prev_rot_mode != "normal" and rot_mode == "normal":
                 self.aggressive_merge_after_rotation()
             self._prev_rot_mode = rot_mode
 
-            # freeze 后不再更新任何 box slot，保留冻结时的可视化结果
+            # After freezing, do not update box slots anymore; keep the frozen visualization result.
             if (not self._counts_frozen) and rot_mode != "freeze":
                 self.update_box_slots_from_lidar(allow_new_slot=(rot_mode == "normal"))
                 self.clear_ghost_box_slots()
@@ -481,15 +488,15 @@ class BoxCounterPerception:
                     continue
 
                 # =========================
-                # freeze 后：不再更新 slot / counts
-                # 只把“当前稳定看到的数字”发布出去，供 switcher 判断是否进入房间
+                # After freezing: do not update slots or counts anymore.
+                # Only publish the currently stable digit for the switcher to decide room entry.
                 # =========================
                 if self._counts_frozen:
                     self.current_seen_digit_pub.publish(Int32(data=int(stable_obs["digit"])))
                     continue
 
                 # =========================
-                # freeze 前：正常计数流程
+                # Before freezing: normal counting flow
                 # =========================
                 slot = self.assign_digit_to_box_slot(stable_obs)
 
@@ -520,10 +527,11 @@ class BoxCounterPerception:
 
     def aggressive_merge_after_rotation(self, radius=None):
         if radius is None:
-            radius = self.confirmed_reuse_radius  # 旋转后：0.55m
+            radius = self.confirmed_reuse_radius  # After rotation: 0.55 m
 
-        # radius=0.70m 用于回环校正
-        # 0.70m < 箱子直径(0.8m)，不会把相邻箱子合并掉
+        # radius=0.70 m is intended for loop-closure correction.
+        # 0.70 m is still smaller than the box diameter (~0.8 m),
+        # so adjacent boxes should not be merged accidentally.
 
         merged = []
         slots = sorted(self.box_slots,
@@ -536,12 +544,12 @@ class BoxCounterPerception:
                 if math.hypot(slot["x"] - kept["x"], slot["y"] - kept["y"]) < radius:
                     for d in range(10):
                         kept["digit_votes"][d] += slot["digit_votes"].get(d, 0)
-                    # 只合并几何与生命周期信息，不盲目累加 digit_votes
+                    # Only merge geometry and lifecycle state; do not blindly accumulate digit votes.
                     kept["hits"] = max(kept["hits"], slot["hits"])
                     kept["confirmed"] = kept["hits"] >= self.box_slot_confirm_hits
                     kept["counted_once"] = kept["counted_once"] or slot.get("counted_once", False)
 
-                    # 选择数字证据更可信的那个 slot
+                    # Keep the slot with stronger digit evidence.
                     kept_conf = (kept.get("assigned_votes", 0), kept.get("hits", 0), int(kept.get("confirmed", False)))
                     slot_conf = (slot.get("assigned_votes", 0), slot.get("hits", 0), int(slot.get("confirmed", False)))
 
@@ -549,7 +557,8 @@ class BoxCounterPerception:
                         kept["digit_votes"] = dict(slot["digit_votes"])
                         kept["assigned_digit"] = slot.get("assigned_digit", None)
                         kept["assigned_votes"] = slot.get("assigned_votes", 0)
-                    # 否则保留 kept 原有 digit_votes，不叠加弱证据
+                    # Otherwise keep the current digit evidence of "kept"
+                    # and avoid adding weaker semantic evidence.
                     duplicate = True
                     break
             if not duplicate:
@@ -562,11 +571,11 @@ class BoxCounterPerception:
 
     def finalize_landmarks(self, radius=None, recent_sec=None):
         """
-        绕图结束后做一次全局 landmark 融合。
-        目标：
-        - 合并空间上接近的 confirmed landmarks
-        - 位置做加权平均，不再简单保留其一
-        - digit_votes 不盲目求和，优先保留更可信的语义证据
+        Perform one final global landmark fusion after the full traversal.
+        Goals:
+        - merge spatially close confirmed landmarks
+        - fuse positions using weighted averaging instead of keeping only one
+        - do not blindly sum digit_votes; prefer the more reliable semantic evidence
         """
         if radius is None:
             radius = self.final_fuse_radius
@@ -575,7 +584,7 @@ class BoxCounterPerception:
 
         now = rospy.Time.now().to_sec()
 
-        # 只保留活着的 slot；优先融合 confirmed，最近看见过的优先
+        # Keep only active slots; prefer confirmed and recently seen slots.
         candidates = []
         for s in self.box_slots:
             if s.get("hits", 0) < 0:
@@ -584,7 +593,7 @@ class BoxCounterPerception:
             if s.get("confirmed", False) or age < recent_sec:
                 candidates.append(s)
 
-        # 排序：confirmed > assigned_votes > hits
+        # Sort by: confirmed > assigned_votes > hits
         candidates = sorted(
             candidates,
             key=lambda s: (
@@ -612,7 +621,8 @@ class BoxCounterPerception:
                 if d >= radius:
                     continue
 
-                # 如果两个 slot 都有数字，且数字冲突明显，则保守些，不强行融合
+                # If both slots have strong but conflicting digit evidence,
+                # stay conservative and do not force fusion.
                 kd = kept.get("assigned_digit", None)
                 sd = slot.get("assigned_digit", None)
                 kv = kept.get("assigned_votes", 0)
@@ -625,7 +635,7 @@ class BoxCounterPerception:
                 if strong_conflict:
                     continue
 
-                # 位置融合：按 hits + assigned_votes 加权平均
+                # Position fusion: weighted average using hits + assigned_votes
                 wk = max(1.0, kept.get("hits", 1) + 0.5 * kept.get("assigned_votes", 0))
                 ws = max(1.0, slot.get("hits", 1) + 0.5 * slot.get("assigned_votes", 0))
 
@@ -637,7 +647,7 @@ class BoxCounterPerception:
                     kept["x"] = float(new_x)
                     kept["y"] = float(new_y)
 
-                # 生命周期信息融合
+                # Merge lifecycle state
                 kept["hits"] = max(kept.get("hits", 0), slot.get("hits", 0))
                 kept["confirmed"] = kept["hits"] >= self.box_slot_confirm_hits
                 kept["t_last_seen"] = max(
@@ -646,13 +656,15 @@ class BoxCounterPerception:
                 )
                 kept["counted_once"] = kept.get("counted_once", False) or slot.get("counted_once", False)
 
-                # 语义融合：不盲加 digit_votes，优先保留更强证据
+                # Semantic fusion: do not sum digit_votes blindly;
+                # prefer the slot with stronger semantic evidence.
                 if _semantic_strength(slot) > _semantic_strength(kept):
                     kept["digit_votes"] = dict(slot.get("digit_votes", self.empty_votes()))
                     kept["assigned_digit"] = slot.get("assigned_digit", None)
                     kept["assigned_votes"] = slot.get("assigned_votes", 0)
                 else:
-                    # 若 kept 更强，仅对 kept 当前主类做非常弱的补强，而不全量叠加
+                    # If kept is stronger, only add a very weak reinforcement
+                    # to the current dominant class instead of full vote summation.
                     kd2 = kept.get("assigned_digit", None)
                     if kd2 is not None:
                         kept["digit_votes"][kd2] = kept["digit_votes"].get(kd2, 0) + min(
@@ -809,7 +821,7 @@ class BoxCounterPerception:
                 self.lidar_frame,
                 self.map_frame,
                 rospy.Time(0),
-                rospy.Duration(0.1) # 逆变换要快，不阻塞
+                rospy.Duration(0.1) # Reverse transform should be fast and non-blocking.
             )
             p_in_lidar = self.tf_listener.transformPoint(self.lidar_frame, p_in_map)
             return p_in_lidar.point.x, p_in_lidar.point.y
@@ -864,15 +876,17 @@ class BoxCounterPerception:
                 curr = [(qx, qy)]
         if len(curr) >= 3: clusters.append(curr)
 
-        # 改良的形状校验逻辑：摒弃极度依赖角度的 AABB 长宽比，转为使用真实物理跨度与轮廓长度
+        # Improved shape validation:
+        # replace the AABB width/height ratio that depends heavily on orientation
+        # with real physical span and contour arc length.
         for cluster in clusters:
             xs = [p[0] for p in cluster]
             ys = [p[1] for p in cluster]
             
-            # 计算最大跨度 Span (首尾直线距离)
+            # Compute max span (straight distance between the first and last points).
             span = math.hypot(xs[-1] - xs[0], ys[-1] - ys[0])
             
-            # 计算轮廓长度 Arc Length (沿聚类表面走线)
+            # Compute contour arc length along the cluster surface.
             arc_length = 0.0
             for i in range(1, len(cluster)):
                 arc_length += math.hypot(xs[i] - xs[i-1], ys[i] - ys[i-1])
@@ -880,14 +894,16 @@ class BoxCounterPerception:
             cx = float(np.mean(xs))
             cy = float(np.mean(ys))
 
-            # 惩罚删除机制：如果在 Box 附近扫到了极其宽广的障碍物 (比如大墙面/大车)，则销毁该候选框
+            # Penalty-based removal:
+            # if a very wide obstacle is scanned near a box candidate (e.g. large wall / vehicle),
+            # penalize the nearby box slot and suppress it.
             if span > self.box_size_max or arc_length > self.box_max_arc:
                 mx, my = self.project_lidar_point_to_map(cx, cy)
                 if mx is not None:
                     self.penalize_box_slot(mx, my)
                 continue
 
-            # 太小则属于噪点
+            # Too small: likely noise.
             if arc_length < self.box_size_min:
                 continue
 
@@ -906,8 +922,9 @@ class BoxCounterPerception:
 
     def clear_ghost_box_slots(self):
         """
-        利用当前雷达扫描作为“负面证据”清除鬼影。
-        如果雷达视野中本该有 Box 的地方其实是空的（激光打到了更远处），则大幅扣减其 hits。
+        Use the current LiDAR scan as negative evidence to remove ghost slots.
+        If a location where a box should exist is actually empty in the current scan
+        (the beam reaches a farther surface), then strongly decrease its hits.
         """
         if self.scan_curr is None or self.scan_params_curr is None:
             return
@@ -918,24 +935,24 @@ class BoxCounterPerception:
 
         for slot in self.box_slots:
             if slot["hits"] < 0:
-                continue # 已死亡，跳过
+                continue # Already dead, skip.
 
-            # 1. 将 Box 转换到当前雷达坐标系下
+            # 1. Transform the box slot into the current LiDAR frame.
             lx, ly = self.transform_map_point_to_lidar(slot["x"], slot["y"])
             if lx is None:
                 continue
             
-            # 2. 计算 Box 距离当前雷达的距离和角度
+            # 2. Compute box distance and bearing from the current LiDAR pose.
             dist_to_slot = math.hypot(lx, ly)
             angle_to_slot = math.atan2(ly, lx)
 
-            # 如果 Box 不在雷达视野范围内，或者距离太远（比如大于4米），不作评判
+            # If the box is outside the LiDAR FOV, or too far away (e.g. > 4 m), do not judge it.
             if angle_to_slot < angle_min or angle_to_slot > angle_max:
                 continue
             if dist_to_slot > 4.0 or dist_to_slot < self.front_range_min:
                 continue
 
-            # 3. 找到对应角度的那根雷达光束
+            # 3. Find the corresponding LiDAR beam.
             idx = int(round((angle_to_slot - angle_min) / angle_inc))
             if 0 <= idx < len(self.scan_curr):
                 actual_laser_dist = self.scan_curr[idx]
@@ -943,13 +960,16 @@ class BoxCounterPerception:
                 if not np.isfinite(actual_laser_dist):
                     continue
 
-                # 4. 核心逻辑：如果实际激光测距 减去 Box理论距离 > 容差(例如 0.5m)
-                # 意味着激光“穿透”了本该有 Box 的地方，打到了后面的墙上 -> 绝对是鬼影！
+                # 4. Core logic:
+                # if actual laser distance - expected box distance > tolerance (e.g. 0.5 m),
+                # the beam passed through the supposed box location and hit a farther wall.
+                # That means this slot is a ghost with high confidence.
                 if actual_laser_dist > dist_to_slot + 0.5:
-                    # 发现鬼影，重拳出击（一次扣除多次 hits，加速死亡）
+                    # Strongly penalize ghost slots to accelerate removal.
                     slot["hits"] -= 3
                     
-                    # 取消确认状态，如果扣到负数，会在 merge 阶段被彻底清理
+                    # Cancel confirmed status if hits fall below threshold.
+                    # If hits drop below zero, the slot will be cleaned up later.
                     if slot["hits"] < self.box_slot_confirm_hits:
                         slot["confirmed"] = False
 
@@ -981,7 +1001,7 @@ class BoxCounterPerception:
     def map_rc_to_world(self, row, col):
         """
         map array index (row, col) -> world (x, y)
-        返回该栅格中心点坐标
+        Return the center coordinate of that grid cell.
         """
         if not self.has_valid_occupancy_map():
             return None, None
@@ -992,7 +1012,8 @@ class BoxCounterPerception:
 
     def is_valid_map_slot(self, x, y):
         """
-        判断某点是否位于合法free区域，并且离障碍/unknown有最小安全距离
+        Check whether a point lies in a valid free area
+        and keeps the minimum safe clearance from obstacles/unknown cells.
         """
         if not self.use_occupancy_map_constraint:
             return True
@@ -1004,11 +1025,11 @@ class BoxCounterPerception:
         if row is None:
             return False
 
-        # 必须在free区域
+        # Must be in a free cell.
         if not self.map_free_mask[row, col]:
             return False
 
-        # 与障碍保持最小距离
+        # Must keep minimum clearance from obstacles.
         if self.map_dist_m[row, col] < self.map_min_free_clearance:
             return False
 
@@ -1016,8 +1037,8 @@ class BoxCounterPerception:
 
     def snap_to_nearest_free(self, x, y, max_radius_m=None):
         """
-        若点落在非法位置，尝试吸附到附近最近合法free格。
-        返回 (new_x, new_y)；若失败返回 (None, None)
+        If a point falls into an invalid location, try snapping it to the nearest valid free cell.
+        Return (new_x, new_y); return (None, None) on failure.
         """
         if max_radius_m is None:
             max_radius_m = self.map_snap_search_radius
@@ -1060,9 +1081,9 @@ class BoxCounterPerception:
 
     def maybe_project_slot_to_valid_free(self, x, y):
         """
-        若点已合法，直接返回。
-        若非法且允许snap，则吸附到最近free。
-        若失败，返回 (None, None)
+        If the point is already valid, return it directly.
+        If invalid and snapping is enabled, snap it to the nearest free cell.
+        If that fails, return (None, None).
         """
         if self.is_valid_map_slot(x, y):
             return x, y
@@ -1073,24 +1094,25 @@ class BoxCounterPerception:
         return None, None
     
     def penalize_box_slot(self, x, y):
-        """对不符合箱子特征的庞大障碍物周边的旧槽位进行扣分"""
+        """Penalize existing nearby slots around large obstacles that do not match box geometry."""
         for slot in self.box_slots:
             dist = math.hypot(slot["x"] - x, slot["y"] - y)
             if dist < self.box_slot_merge_radius:
-                slot["hits"] -= 2  # 重度扣分
+                slot["hits"] -= 2  # Strong penalty
                 if slot["hits"] < 0:
-                    slot["hits"] = -1  # 标记为死亡，待合并阶段清理
+                    slot["hits"] = -1  # Mark as dead; it will be removed during merging.
                 slot["confirmed"] = slot["hits"] >= self.box_slot_confirm_hits
 
     def insert_or_update_box_slot(self, x, y, allow_new_slot=True):
         """
-        将 box slot 视为全局静态 landmark，使用小步长加权更新，而不是硬锁死。
-        逻辑：
-        1. 新观测先过 occupancy 合法性约束
-        2. 先找 confirmed landmark（更可信）
-        3. 再找普通 landmark
-        4. 若找到，则做小步长位置更新
-        5. 若找不到，且允许新建，则创建新 landmark
+        Treat each box slot as a global static landmark and update it incrementally
+        with a small step size instead of locking it completely.
+        Logic:
+        1. Check occupancy-map validity for the new observation
+        2. Prefer matching confirmed landmarks
+        3. Then try normal landmarks
+        4. If matched, update position with a small step
+        5. If not matched and creation is allowed, create a new landmark
         """
         x, y = self.maybe_project_slot_to_valid_free(x, y)
         if x is None:
@@ -1099,7 +1121,8 @@ class BoxCounterPerception:
         now = rospy.Time.now().to_sec()
 
         def _slot_score(slot):
-            # 分数越小越好；confirmed 优先、hits 高优先、距离近优先
+            # Lower score is better:
+            # prefer confirmed slots, higher-hit slots, and spatially closer slots.
             d = math.hypot(slot["x"] - x, slot["y"] - y)
             conf_bonus = 0.15 if slot.get("confirmed", False) else 0.0
             hit_bonus = min(slot.get("hits", 0), 20) * 0.005
@@ -1108,7 +1131,7 @@ class BoxCounterPerception:
         best_slot = None
         best_score = 1e9
 
-        # 1) 优先关联 confirmed landmark
+        # 1) Prefer confirmed landmarks first.
         for slot in self.box_slots:
             if slot.get("hits", 0) < 0:
                 continue
@@ -1121,7 +1144,7 @@ class BoxCounterPerception:
                     best_score = s
                     best_slot = slot
 
-        # 2) 若没有 confirmed 命中，再找普通 slot
+        # 2) If no confirmed slot matches, search normal slots.
         if best_slot is None:
             for slot in self.box_slots:
                 if slot.get("hits", 0) < 0:
@@ -1133,7 +1156,7 @@ class BoxCounterPerception:
                         best_score = s
                         best_slot = slot
 
-        # 3) 找不到则新建
+        # 3) Create a new slot if none matched.
         if best_slot is None:
             if not allow_new_slot:
                 return None
@@ -1153,7 +1176,8 @@ class BoxCounterPerception:
             self.next_box_slot_id += 1
             return self.box_slots[-1]
 
-        # 4) 命中已有 landmark：做小步长更新，而不是完全锁死
+        # 4) Reuse an existing landmark:
+        # update it with a small step instead of hard-locking it.
         best_slot["hits"] += 1
         best_slot["t_last_seen"] = now
         best_slot["confirmed"] = best_slot["hits"] >= self.box_slot_confirm_hits
@@ -1178,7 +1202,8 @@ class BoxCounterPerception:
         return best_slot
     
     def merge_duplicate_box_slots(self):
-        # 先清理 hits 降为负数的死亡槽位 (即后续被判定为大墙面等非 Box 形状的)
+        # First remove dead slots whose hits have dropped below zero
+        # (e.g. later judged to be large walls or other non-box shapes).
         now = rospy.Time.now().to_sec()
         unconfirmed_ttl = rospy.get_param("~unconfirmed_slot_ttl", 3.0)
         alive_slots = [s for s in self.box_slots if s["hits"] >= 0 and (
@@ -1194,7 +1219,7 @@ class BoxCounterPerception:
             for kept in merged:
                 if math.hypot(slot["x"] - kept["x"], slot["y"] - kept["y"]) < self.box_slot_duplicate_radius:
                     duplicate = True
-                    # 融合两者的 hits（可选）
+                    # Merge hit counts conservatively.
                     kept["hits"] = max(kept["hits"], slot["hits"])
                     kept["confirmed"] = kept["hits"] >= self.box_slot_confirm_hits
                     break
@@ -1243,7 +1268,7 @@ class BoxCounterPerception:
         return None
 
     def maybe_trigger_cone_open(self, det, vis_frame=None):
-        # 只允许全局第一次 unblock 生效
+        # Only allow the first global unblock event to take effect.
         if self._unblock_sent_once:
             return False
 
@@ -1346,7 +1371,7 @@ class BoxCounterPerception:
         y += 25
         for i in range(10):
             count = self.counts.get(i, 0)
-            # 出现的数字高亮显示为绿色，未出现的显示为暗灰色
+            # Highlight detected digits in green, and show absent digits in dim gray.
             color = (0, 255, 0) if count > 0 else (100, 100, 100)
             thickness = 2 if count > 0 else 1
             cv2.putText(image, f"Digit {i}: {count} boxes", (30, y), 

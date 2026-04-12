@@ -1,0 +1,28 @@
+<launch>
+  <node
+    name="cartographer_node"
+    pkg="me5413_world"
+    type="cartographer_node_wrapper.sh"
+    args="-configuration_directory $(find me5413_world)/map_config -configuration_basename cartographer_2d_IMU_ODOM_LI.lua"
+    output="screen">
+    <remap from="scan" to="/front/scan"/>
+    <remap from="odom" to="/odometry/filtered"/>
+    <remap from="imu" to="/imu/data"/>
+    <remap from="fix" to="/navsat/fix"/>
+  </node>
+
+  <node
+    name="cartographer_occupancy_grid_node"
+    pkg="me5413_world"
+    type="cartographer_occupancy_grid_node_wrapper.sh"
+    args="-resolution 0.05"
+    output="screen"/>
+    
+  <node
+    name="rviz"
+    pkg="rviz"
+    type="rviz"
+    args="-d $(find me5413_world)/rviz/cartographer.rviz"
+    output="log"
+    respawn="false"/>
+</launch>

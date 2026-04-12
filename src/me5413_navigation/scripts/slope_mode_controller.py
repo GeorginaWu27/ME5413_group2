@@ -22,25 +22,25 @@ class SlopeModeController:
     RELOCALIZE = 2
 
     def __init__(self):
-        # ---------- topic 参数 ----------
+        # ---------- Topic parameters ----------
         self.imu_topic = rospy.get_param("~imu_topic", "/imu/data")
         self.scan_topic = rospy.get_param("~scan_topic", "/scan")
         self.cmd_vel_topic = rospy.get_param("~cmd_vel_topic", "/cmd_vel")
         self.initialpose_topic = rospy.get_param("~initialpose_topic", "/initialpose")
         
-        # ---------- 坡道判定参数 ----------
+        # ---------- Slope detection parameters ----------
         self.slope_enter_deg = rospy.get_param("~slope_enter_deg", 6.0)
         self.slope_exit_deg = rospy.get_param("~slope_exit_deg", 3.0)
         self.enter_hold_sec = rospy.get_param("~enter_hold_sec", 0.5)
         self.exit_hold_sec = rospy.get_param("~exit_hold_sec", 1.0)
 
-        # ---------- 坡道运动参数 ----------
+        # ---------- Slope driving parameters ----------
         self.forward_speed = rospy.get_param("~forward_speed", 0.30)
         self.slow_speed = rospy.get_param("~slow_speed", 0.18)
         self.turn_speed = rospy.get_param("~turn_speed", 0.25)
         self.avoid_turn_speed = rospy.get_param("~avoid_turn_speed", 0.12)
 
-        # ---------- 避障参数 ----------
+        # ---------- Obstacle avoidance parameters ----------
         self.front_block_dist = rospy.get_param("~front_block_dist", 0.65)
         self.side_warn_dist = rospy.get_param("~side_warn_dist", 0.45)
         self.front_slow_dist = rospy.get_param("~front_slow_dist", 0.90)
@@ -50,7 +50,7 @@ class SlopeModeController:
         self.side_angle_deg = rospy.get_param("~side_angle_deg", 55.0)
         self.right_max_dist = rospy.get_param("~right_max_dist", 3.0)
 
-        # ---------- 左墙跟随参数 ----------
+        # ---------- Left-wall-following parameters ----------
         self.left_target_dist = rospy.get_param("~left_target_dist", 0.55)
         self.left_wall_kp = rospy.get_param("~left_wall_kp", 1.20)
         self.left_wall_kd = rospy.get_param("~left_wall_kd", 0.25)
@@ -61,22 +61,22 @@ class SlopeModeController:
         self.left_reacquire_dist = rospy.get_param("~left_reacquire_dist", 1.20)
         self.left_max_follow_dist = rospy.get_param("~left_max_follow_dist", 1.60)
 
-        # ---------- 右绕与航向修正 ----------
+        # ---------- Right-bypass and heading correction ----------
         self.right_bypass_bias = rospy.get_param("~right_bypass_bias", 0.45)
         self.yaw_kp = rospy.get_param("~yaw_kp", 0.80)
 
-        # ---------- 固定坡道方向 ----------
+        # ---------- Fixed slope heading ----------
         self.slope_target_yaw_deg = rospy.get_param("~slope_target_yaw_deg", 0.0)
         self.slope_target_yaw_rad = math.radians(self.slope_target_yaw_deg)
 
-        # ---------- 出坡重定位参数 ----------
+        # ---------- Post-slope relocalization parameters ----------
         self.rotate_speed = rospy.get_param("~rotate_speed", 0.30)
         self.rotate_total_deg = rospy.get_param("~rotate_total_deg", 180.0)
 
-        # ---------- 控制频率 ----------
+        # ---------- Control frequency ----------
         self.control_rate = rospy.get_param("~control_rate", 15.0)
 
-        # ---------- 固定 initialpose 参数 ----------
+        # ---------- Fixed initialpose parameters ----------
         self.use_fixed_initialpose = rospy.get_param("~use_fixed_initialpose", True)
         self.fixed_pose_x = rospy.get_param("~fixed_pose_x", 0.0)
         self.fixed_pose_y = rospy.get_param("~fixed_pose_y", 0.0)
@@ -88,7 +88,7 @@ class SlopeModeController:
 
         self.publish_initialpose_on_flat = rospy.get_param("~publish_initialpose_on_flat", True)
         
-        # ---------- 回到 NORMAL 后自动发送导航目标 ----------
+        # ---------- Automatically send a navigation goal after returning to NORMAL ----------
         self.auto_send_goal_on_normal = rospy.get_param("~auto_send_goal_on_normal", True)
 
         self.normal_goal_x = rospy.get_param("~normal_goal_x", 32.10352325439453)
@@ -100,7 +100,10 @@ class SlopeModeController:
         self.normal_goal_qz = rospy.get_param("~normal_goal_qz", -0.9974967402639787)
         self.normal_goal_qw = rospy.get_param("~normal_goal_qw", 0.070712468226874)
         
-        # ---------- 状态 ----------
+        # ---------- State ----------
+        # Main controller state:
+        # NORMAL handles standard navigation, SLOPE_MODE takes over motion on the slope,
+        # and RELOCALIZE performs in-place rotation to help localization recover after the slope.
         self.mode = self.NORMAL
         self.mode_pub = rospy.Publisher("~mode", Int32, queue_size=1, latch=True)
         self.mode_pub.publish(Int32(self.mode))
@@ -122,7 +125,7 @@ class SlopeModeController:
         self.initialpose_sent_this_cycle = False
         self.last_left_error = 0.0
 
-        # ---------- 通信 ----------
+        # ---------- Communication ----------
         self.imu_sub = rospy.Subscriber(self.imu_topic, Imu, self.imu_callback, queue_size=1)
         self.scan_sub = rospy.Subscriber(self.scan_topic, LaserScan, self.scan_callback, queue_size=1)
 
@@ -140,16 +143,16 @@ class SlopeModeController:
         self.move_base_client.wait_for_server()
         rospy.loginfo("Connected to move_base action server.")
 
-        # ---------- 楼层/地图参数切换 ----------
+        # ---------- Floor / map parameter switching ----------
         self.current_floor = 1
         self.global_map_config_applied = 1
 
-        # 一楼保持原参数
+        # First-floor parameters remain unchanged.
         self.floor1_footprint_padding = rospy.get_param("~floor1_footprint_padding", 0.10)
         self.floor1_inflation_radius = rospy.get_param("~floor1_inflation_radius", 0.30)
         self.floor1_cost_scaling_factor = rospy.get_param("~floor1_cost_scaling_factor", 10.0)
 
-        # 二楼参数
+        # Second-floor parameters
         self.floor2_footprint_padding = rospy.get_param("~floor2_footprint_padding", 0.18)
         self.floor2_inflation_radius = rospy.get_param("~floor2_inflation_radius", 0.55)
         self.floor2_cost_scaling_factor = rospy.get_param("~floor2_cost_scaling_factor", 6.0)
@@ -157,7 +160,7 @@ class SlopeModeController:
         self.move_base_ns = rospy.get_param("~move_base_ns", "/move_base")
 
     # =========================
-    # 回调
+    # Callbacks
     # =========================
     def imu_callback(self, msg):
         q = msg.orientation
@@ -174,7 +177,7 @@ class SlopeModeController:
         self.has_scan = True
 
     # =========================
-    # 工具函数
+    # Utility functions
     # =========================
     @staticmethod
     def normalize_angle(a):
@@ -295,7 +298,7 @@ class SlopeModeController:
         )
 
     # =========================
-    # 模式判定
+    # Mode decision
     # =========================
     def slope_condition_met(self):
         tilt_deg = self.get_tilt_deg()
@@ -326,7 +329,7 @@ class SlopeModeController:
         return False
 
     # =========================
-    # 模式切换
+    # Mode switching
     # =========================
     def enter_slope_mode(self):
         self.cancel_navigation()
@@ -372,12 +375,13 @@ class SlopeModeController:
         self.mode_pub.publish(Int32(self.mode))
         rospy.logwarn("Back to NORMAL mode.")
 
-        # 这里认为：出坡完成后已经到二楼
+        # The controller assumes that once the slope is finished,
+        # the robot has reached the second floor.
         self.current_floor = 2
-        # 先切 global_costmap 参数
+        # Apply global_costmap parameters first.
         self.apply_global_costmap_params(self.current_floor)
 
-        rospy.sleep(0.5)   # 可选，给 AMCL / move_base 一点恢复时间
+        rospy.sleep(0.5)   # Optional: give AMCL / move_base some time to recover.
         try:
             rospy.wait_for_service('/move_base/clear_costmaps')
             self.clear_costmaps_srv = rospy.ServiceProxy('/move_base/clear_costmaps', Empty)
@@ -386,13 +390,13 @@ class SlopeModeController:
         except Exception as e:
             rospy.logwarn("Failed to clear costmaps: %s", str(e))
             
-        rospy.sleep(0.3)
-        if self.auto_send_goal_on_normal:
-            self.send_normal_goal()
+        # rospy.sleep(0.3)
+        # if self.auto_send_goal_on_normal:
+        #     self.send_normal_goal()
     
     def apply_global_costmap_params(self, floor_id):
         """
-        只动态调整 global_costmap：
+        Dynamically adjust only the global_costmap:
         1) footprint_padding
         2) inflation_radius
         3) cost_scaling_factor
@@ -407,7 +411,7 @@ class SlopeModeController:
                 inflation_radius = self.floor1_inflation_radius
                 cost_scaling_factor = self.floor1_cost_scaling_factor
 
-            # 1. global_costmap 本体参数
+            # 1. global_costmap base parameters
             global_costmap_client = DynClient(
                 self.move_base_ns + "/global_costmap",
                 timeout=2.0
@@ -416,7 +420,7 @@ class SlopeModeController:
                 "footprint_padding": footprint_padding
             })
 
-            # 2. inflation layer 参数
+            # 2. inflation layer parameters
             inflation_client = DynClient(
                 self.move_base_ns + "/global_costmap/inflater_layer",
                 timeout=2.0
@@ -437,9 +441,12 @@ class SlopeModeController:
             rospy.logwarn("Failed to apply global_costmap params for floor %d: %s", floor_id, str(e))
     
     # =========================
-    # 坡道模式控制
+    # Slope-mode controller
     # =========================
     def run_slope_mode(self):
+        # Slope navigation logic:
+        # uses LiDAR-based obstacle checks, left-wall following, and heading correction
+        # to keep the robot moving stably along the ramp.
         fa = self.front_angle_deg
         fla = self.front_left_angle_deg
 
@@ -456,7 +463,7 @@ class SlopeModeController:
 
         yaw_error = self.normalize_angle(self.slope_target_yaw_rad - self.yaw_rad)
 
-        # 前方被挡，或者左前有伸出的壁障
+        # Front blocked, or a protruding obstacle is detected at the front-left.
         front_blocked = (front_min < self.front_block_dist) or (front_left_min < self.side_warn_dist)
         front_slow = front_min < self.front_slow_dist
         left_wall_seen = left_dist < self.left_reacquire_dist
@@ -465,16 +472,18 @@ class SlopeModeController:
         wz = 0.0
 
         if front_blocked:
-            # 这种地图默认右绕，避免按左右对称选边后漂向右边大空场
+            # This map prefers bypassing on the right
+            # to avoid drifting into the large open area on the right side.
             vx = self.slow_speed
 
-            # 障碍越近，右转越强
+            # The closer the obstacle, the stronger the right turn.
             # dist_ratio = self.clamp((self.front_block_dist - front_min) / self.front_block_dist, 0.0, 1.0)
             # front_term = 0.25 + dist_ratio
             # wz = -front_term
             wz =-self.turn_speed
 
-            # 如果已经离左墙太远，则减小右转，慢慢把车拉回左边
+            # If the robot is already too far from the left wall,
+            # reduce the right bypass and pull it back leftward.
             if left_dist > self.left_max_follow_dist:
                 # recover = self.clamp((left_dist - self.left_max_follow_dist) * 0.8, 0.0, self.turn_speed)
                 # wz += recover
@@ -483,7 +492,7 @@ class SlopeModeController:
         else:
             vx = self.slow_speed if front_slow else self.forward_speed
 
-            # 正常时贴左墙走
+            # Normal mode on slope: follow the left wall.
             left_error = left_dist - self.left_target_dist
             d_error = (left_error - self.last_left_error) * self.control_rate
             self.last_left_error = left_error
@@ -491,13 +500,15 @@ class SlopeModeController:
             wall_term = self.left_wall_kp * left_error + self.left_wall_kd * d_error
             wall_term = self.clamp(wall_term, -self.turn_speed, self.turn_speed)
 
-            # left_error > 0 表示离左墙太远，需要左转，ROS中 wz>0 通常表示左转
+            # left_error > 0 means the robot is too far from the left wall,
+            # so it should turn left. In ROS, wz > 0 usually means left turn.
             wz = wall_term
 
-            # 再叠加一点朝坡道目标方向的修正，防止蛇形
+            # Add a small heading correction toward the desired slope heading
+            # to reduce snake-like oscillation.
             wz += self.clamp(self.yaw_kp * yaw_error, -0.25, 0.25)
 
-            # 左墙暂时丢失，主动向左找墙
+            # If the left wall is temporarily lost, actively steer left to reacquire it.
             if not left_wall_seen:
                 wz += 0.18
                 
@@ -526,7 +537,7 @@ class SlopeModeController:
             self.enter_relocalize()
 
     # =========================
-    # 出坡后原地转圈重定位
+    # In-place rotation relocalization after the slope
     # =========================
     def run_relocalize(self):
         if not self.has_imu:
@@ -578,7 +589,7 @@ class SlopeModeController:
             self.normal_goal_qw
         )
     # =========================
-    # 主循环
+    # Main loop
     # =========================
     def spin(self):
         rate = rospy.Rate(self.control_rate)

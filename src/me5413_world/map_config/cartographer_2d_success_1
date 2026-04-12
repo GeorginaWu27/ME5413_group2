@@ -1,0 +1,81 @@
+include "map_builder.lua"
+include "trajectory_builder.lua"
+
+options = {
+  map_builder = MAP_BUILDER,
+  trajectory_builder = TRAJECTORY_BUILDER,
+
+  map_frame = "map",
+  tracking_frame = "imu_link",
+  published_frame = "base_link",
+  odom_frame = "odom",
+
+  provide_odom_frame = true,
+  publish_frame_projected_to_2d = true,
+  -- Enable the pose extrapolator to estimate sensor-time poses more smoothly,
+  -- improving pose prediction stability when multiple sensors are asynchronous.
+  use_pose_extrapolator = true,
+  use_odometry = true,
+  use_nav_sat = true,
+  use_landmarks = false,
+  -- Explicitly publish results to the TF tree so that other system modules can directly consume the transforms.
+  publish_to_tf = true,
+
+  num_laser_scans = 1,
+  num_multi_echo_laser_scans = 0,
+  num_subdivisions_per_laser_scan = 1,
+  num_point_clouds = 0,
+
+  lookup_transform_timeout_sec = 0.2,
+  submap_publish_period_sec = 0.3,
+  pose_publish_period_sec = 5e-3,
+  trajectory_publish_period_sec = 30e-3,
+
+  rangefinder_sampling_ratio = 1.0,
+  odometry_sampling_ratio = 1.0,
+  fixed_frame_pose_sampling_ratio = 1.0,
+  imu_sampling_ratio = 1.0,
+  landmarks_sampling_ratio = 1.0,
+}
+
+-- Enable the 2D trajectory builder for planar SLAM.
+MAP_BUILDER.use_trajectory_builder_2d = true
+
+TRAJECTORY_BUILDER_2D.use_imu_data = true
+
+TRAJECTORY_BUILDER_2D.min_range = 0.2 --0.10 -- Filter out points that are too close.
+TRAJECTORY_BUILDER_2D.max_range = 20.0 --30.0 -- Focus more on near- to mid-range structures.
+-- Reduce overly aggressive clearing of unknown space.
+-- This makes free-space updates more conservative and lowers mapping errors caused by empty rays.
+TRAJECTORY_BUILDER_2D.missing_data_ray_length = 2.0 --5.0
+
+-- Process every incoming scan immediately for minimal latency and more real-time map updates.
+TRAJECTORY_BUILDER_2D.num_accumulated_range_data = 1
+-- Control how many range data entries are accumulated in one submap.
+-- More scans per submap make the submap denser and more stable, and less sensitive to random noise.
+TRAJECTORY_BUILDER_2D.submaps.num_range_data = 1000
+
+TRAJECTORY_BUILDER_2D.use_online_correlative_scan_matching = true
+-- Control the translation search range used by online correlative scan matching.
+-- A smaller search window relies more heavily on the initial pose estimate from odometry / IMU / extrapolator.
+TRAJECTORY_BUILDER_2D.real_time_correlative_scan_matcher.linear_search_window = 0.1
+-- Allow online correlative scan matching to search within about ±35 degrees.
+-- This is more tolerant to heading errors and gives the matcher a better chance to recover from poor orientation estimates.
+TRAJECTORY_BUILDER_2D.real_time_correlative_scan_matcher.angular_search_window = math.rad(35.0)
+-- Penalize translation deviation from the predicted pose.
+-- A larger weight means the system is less willing to move far from the predicted position
+-- and trusts the translational prior from odometry / extrapolator more.
+TRAJECTORY_BUILDER_2D.real_time_correlative_scan_matcher.translation_delta_cost_weight = 20.0
+-- Penalize rotation deviation from the predicted pose.
+-- This is more tolerant to rotational correction, allowing the scan matcher to adjust angle more freely than translation.
+TRAJECTORY_BUILDER_2D.real_time_correlative_scan_matcher.rotation_delta_cost_weight = 1.0
+
+-- Huber loss reduces the impact of outliers on optimization.
+-- When some constraints are unreliable, this prevents them from overly distorting the global optimization result.
+POSE_GRAPH.optimization_problem.huber_scale = 1e2
+-- Run pose graph optimization after accumulating this many nodes.
+POSE_GRAPH.optimize_every_n_nodes = 5 --90
+-- Require a scan/submap matching result to reach at least this score before accepting it as a constraint.
+POSE_GRAPH.constraint_builder.min_score = 0.65
+
+return options

@@ -1,0 +1,46 @@
+# ---------- Basic RTAB-Map behavior ----------
+frame_id: base_link
+odom_frame_id: odom
+map_frame_id: map
+
+subscribe_rgb: true
+subscribe_depth: true
+subscribe_scan: false
+approx_sync: true
+queue_size: 20
+wait_for_transform: 0.2
+
+# ---------- 2D grid-related settings ----------
+Grid/3D: false
+Grid/NormalsSegmentation: true
+Grid/GroundIsObstacle: false
+Grid/MapFrameProjection: false
+
+# Ground / obstacle segmentation
+Grid/NormalK: 20
+Grid/MaxGroundAngle: 25
+Grid/MinGroundHeight: -0.15
+Grid/MaxObstacleHeight: 1.20
+Grid/MinClusterSize: 10
+
+# Noise filtering
+Grid/NoiseFilteringRadius: 0.05
+Grid/NoiseFilteringMinNeighbors: 5
+Grid/PreVoxelFiltering: true
+
+# Valid sensing range
+Grid/RangeMin: 0.4
+Grid/RangeMax: 6.0
+
+# Height filtering:
+# avoid contamination between regions at different elevations
+GridGlobal/AltitudeDelta: 0.4
+GridGlobal/Eroded: false
+GridGlobal/FloodFillDepth: 0
+
+# Memory / mapping
+Mem/IncrementalMemory: true
+Mem/InitWMWithAllNodes: false
+RGBD/NeighborLinkRefining: true
+RGBD/ProximityBySpace: true
+RGBD/OptimizeFromGraphEnd: false

@@ -9,7 +9,7 @@ import tf
 from geometry_msgs.msg import PoseWithCovarianceStamped, Quaternion
 from move_base_msgs.msg import MoveBaseAction, MoveBaseGoal
 from nav_msgs.msg import OccupancyGrid
-from std_msgs.msg import Int32
+from std_msgs.msg import Int32, Bool
 
 class PatrolWaypointsNode(object):
     def __init__(self):
@@ -19,7 +19,7 @@ class PatrolWaypointsNode(object):
         self.slope_mode_enabled = False
         rospy.Subscriber(self.slope_mode_topic, Int32, self.slope_mode_cb, queue_size=1)
         # ----------------------------
-        # 参数
+        # Parameters
         # ----------------------------
         self.map_frame = rospy.get_param("~map_frame", "map")
         self.base_frame = rospy.get_param("~base_frame", "base_link")
@@ -36,12 +36,13 @@ class PatrolWaypointsNode(object):
         self.default_yaw_tolerance = rospy.get_param("~default_yaw_tolerance", 3.14)
         self.default_required = rospy.get_param("~default_required", False)
 
-        # 障碍物 0.8m x 0.8m，替代目标搜索半径从 0.8m 开始更合理
+        # For an obstacle of about 0.8 m x 0.8 m, it is more reasonable
+        # to start the alternative-goal search radius from 0.8 m.
         self.search_radii = rospy.get_param("~search_radii", [0.8, 1.0, 1.2, 1.5])
         self.search_angle_step_deg = rospy.get_param("~search_angle_step_deg", 30.0)
 
-        # costmap 代价值阈值
-        # 0~free_cost_threshold 看成可用
+        # Costmap cost threshold:
+        # values from 0 to free_cost_threshold are treated as navigable.
         self.free_cost_threshold = rospy.get_param("~free_cost_threshold", 20)
 
         self.waypoints = rospy.get_param("~waypoints", [])
@@ -50,8 +51,10 @@ class PatrolWaypointsNode(object):
             raise RuntimeError("No waypoints configured.")
 
         # ----------------------------
-        # 运行时状态
+        # Runtime state
         # ----------------------------
+        # Stores the current robot pose estimate, latest costmap,
+        # and patrol-trigger state used by the waypoint execution loop.
         self.robot_x = None
         self.robot_y = None
         self.robot_yaw = None
@@ -59,9 +62,12 @@ class PatrolWaypointsNode(object):
         self.costmap = None
         self.costmap_info = None
 
-        # 订阅
+        # Subscribers
         rospy.Subscriber(self.amcl_topic, PoseWithCovarianceStamped, self.amcl_cb, queue_size=1)
         rospy.Subscriber(self.costmap_topic, OccupancyGrid, self.costmap_cb, queue_size=1)
+        
+        self.enter_room_triggered = False
+        rospy.Subscriber("/second_floor/enter_room_trigger", Bool, self.enter_trigger_cb, queue_size=1)
 
         # move_base action client
         rospy.loginfo("Waiting for move_base action server...")
@@ -74,7 +80,7 @@ class PatrolWaypointsNode(object):
         rospy.loginfo("Patrol waypoints node ready.")
 
     # =========================================================
-    # callbacks
+    # Callbacks
     # =========================================================
     def amcl_cb(self, msg):
         self.robot_x = msg.pose.pose.position.x
@@ -88,6 +94,10 @@ class PatrolWaypointsNode(object):
         self.costmap = msg.data
         self.costmap_info = msg.info
 
+    def enter_trigger_cb(self, msg):
+        if msg.data:
+            self.enter_room_triggered = True
+
     def wait_until_ready(self):
         rate = rospy.Rate(10)
         while not rospy.is_shutdown():
@@ -100,7 +110,7 @@ class PatrolWaypointsNode(object):
         self.slope_mode_enabled = (msg.data == 1)   # 1 == SLOPE_MODE
 
     # =========================================================
-    # utils
+    # Utility functions
     # =========================================================
     def normalize_angle(self, a):
         while a > math.pi:
@@ -155,7 +165,7 @@ class PatrolWaypointsNode(object):
 
     def is_pose_free(self, wx, wy):
         """
-        -1 未知区域，这里保守处理成不可用
+        Treat unknown area (-1) conservatively as unavailable.
         """
         c = self.cost_at(wx, wy)
         if c < 0:
@@ -189,12 +199,12 @@ class PatrolWaypointsNode(object):
         return goal
 
     # =========================================================
-    # waypoint logic
+    # Waypoint logic
     # =========================================================
     def find_alternative_goal(self, nominal_x, nominal_y):
         """
-        原始点可用 -> 直接返回
-        原始点被占 -> 在周围圆环找替代点
+        If the nominal point is free -> return it directly.
+        If the nominal point is occupied -> search for a nearby alternative on surrounding rings.
         """
         if self.is_pose_free(nominal_x, nominal_y):
             return nominal_x, nominal_y
@@ -222,9 +232,9 @@ class PatrolWaypointsNode(object):
                            nominal_x, nominal_y, nominal_yaw,
                            xy_tol, yaw_tol, timeout_sec):
         """
-        nav_x/nav_y 是实际给 move_base 的目标
-        nominal_x/nominal_y 是原始巡逻点
-        到原始点附近 or 到替代点附近，都算成功
+        nav_x/nav_y: actual target sent to move_base
+        nominal_x/nominal_y: original patrol waypoint
+        Reaching either the original point vicinity or the alternative navigation point vicinity counts as success.
         """
         goal = self.build_goal(nav_x, nav_y, nav_yaw)
         self.mb_client.send_goal(goal)
@@ -240,13 +250,13 @@ class PatrolWaypointsNode(object):
 
             elapsed = (rospy.Time.now() - start).to_sec()
 
-            # 到原始参考点附近
+            # Near the original reference point.
             if self.within_tolerance(nominal_x, nominal_y, nominal_yaw, xy_tol, yaw_tol):
                 rospy.loginfo("Reached nominal waypoint tolerance.")
                 self.mb_client.cancel_goal()
                 return True, "reached_nominal"
 
-            # 到替代导航点附近
+            # Near the alternative navigation point.
             if self.within_tolerance(nav_x, nav_y, nav_yaw, xy_tol, yaw_tol):
                 rospy.loginfo("Reached alternative/nav goal tolerance.")
                 self.mb_client.cancel_goal()
@@ -280,10 +290,14 @@ class PatrolWaypointsNode(object):
             "x": float(wp["x"]),
             "y": float(wp["y"]),
             "yaw": float(wp.get("yaw", 0.0)),
+            "alt_x": float(wp["alt_x"]) if "alt_x" in wp else None,
+            "alt_y": float(wp["alt_y"]) if "alt_y" in wp else None,
+            "alt_yaw": float(wp.get("alt_yaw", 0.0)) if "alt_x" in wp else None,
             "tolerance": float(wp.get("tolerance", self.default_tolerance)),
             "yaw_tolerance": float(wp.get("yaw_tolerance", self.default_yaw_tolerance)),
             "required": bool(wp.get("required", self.default_required)),
             "timeout": float(wp.get("timeout", self.default_timeout)),
+            "delay": float(wp.get("delay", 0.0)),
         }
 
     def handle_one_waypoint(self, wp):
@@ -298,10 +312,17 @@ class PatrolWaypointsNode(object):
 
         rospy.loginfo("========== Waypoint [%s] (%.2f, %.2f) ==========", name, nominal_x, nominal_y)
 
-        # 已经在附近，直接成功
+        # Already near enough: succeed immediately.
         if self.within_tolerance(nominal_x, nominal_y, nominal_yaw, xy_tol, yaw_tol):
             rospy.loginfo("Already within tolerance of [%s]", name)
             return True
+
+        if wp.get("alt_x") is not None and wp.get("alt_y") is not None:
+            if not self.is_pose_free(nominal_x, nominal_y):
+                rospy.logwarn("[%s] Primary point blocked in costmap. Switching to alt: (%.2f, %.2f)", name, wp["alt_x"], wp["alt_y"])
+                nominal_x = wp["alt_x"]
+                nominal_y = wp["alt_y"]
+                nominal_yaw = wp["alt_yaw"]
 
         for i in range(self.retry_num + 1):
             rospy.loginfo("[%s] attempt %d / %d", name, i + 1, self.retry_num + 1)
@@ -318,7 +339,8 @@ class PatrolWaypointsNode(object):
             nav_x, nav_y = alt
             nav_yaw = math.atan2(nominal_y - nav_y, nominal_x - nav_x)
 
-            # 如果替代点刚好就是原点，避免 atan2(0,0) 方向无意义
+            # If the alternative point is exactly the nominal point,
+            # avoid meaningless orientation from atan2(0, 0).
             if abs(nav_x - nominal_x) < 1e-6 and abs(nav_y - nominal_y) < 1e-6:
                 nav_yaw = nominal_yaw
 
@@ -332,6 +354,13 @@ class PatrolWaypointsNode(object):
                 rospy.loginfo("[%s] success: %s", name, reason)
                 return True
             else:
+                if reason in ["move_base_failed", "timeout"] and wp.get("alt_x") is not None and wp.get("alt_y") is not None:
+                    if abs(nominal_x - wp["alt_x"]) > 1e-3:
+                        rospy.logwarn("[%s] Navigation failed. Switching to alt waypoint.", name)
+                        nominal_x = wp["alt_x"]
+                        nominal_y = wp["alt_y"]
+                        nominal_yaw = wp["alt_yaw"]
+                        continue
                 if reason == "slope_mode":
                     rospy.logwarn("[%s] terminated by slope mode.", name)
                     return False
@@ -345,6 +374,9 @@ class PatrolWaypointsNode(object):
             return True
 
     def spin(self):
+        # Main patrol loop:
+        # iterates through configured waypoints, handles retries and slope-mode interruption,
+        # and optionally transfers control to second-floor room-entry navigation.
         rate = rospy.Rate(1.0)
 
         while not rospy.is_shutdown():
@@ -354,9 +386,28 @@ class PatrolWaypointsNode(object):
 
                 if not ok:
                     if self.slope_mode_enabled:
-                        rospy.logwarn("Patrol stopped because slope mode was entered: %s", wp["name"])
+                        rospy.logwarn("Patrol paused because slope mode was entered: %s", wp["name"])
+                        while not rospy.is_shutdown() and self.slope_mode_enabled:
+                            rospy.sleep(0.5)
+                        rospy.logwarn("Slope mode finished. Waiting for costmap clearing to finish...")
+                        rospy.sleep(3.0)
+                        rospy.logwarn("Taking over navigation for 2nd floor tasks.")
+                        continue
                     else:
                         rospy.logerr("Patrol stopped because required waypoint failed: %s", wp["name"])
+                        return
+
+                if wp.get("delay", 0) > 0:
+                    rospy.loginfo("Waiting for %.1f sec at waypoint [%s]", wp["delay"], wp["name"])
+                    wait_start = rospy.Time.now()
+                    while (rospy.Time.now() - wait_start).to_sec() < wp["delay"]:
+                        if self.enter_room_triggered:
+                            break
+                        rospy.sleep(0.1)
+
+                if self.enter_room_triggered:
+                    rospy.loginfo("Enter room triggered! Aborting patrol and going to target room.")
+                    self.go_to_target_room()
                     return
 
                 rospy.sleep(0.5)
@@ -368,6 +419,26 @@ class PatrolWaypointsNode(object):
             rospy.loginfo("One patrol loop finished, restart...")
             rate.sleep()
 
+    def go_to_target_room(self):
+        # Candidate room-entry targets on the second floor.
+        # The closest one is chosen based on the robot's current y position.
+        target_pts = [
+            (25.175, 0.227, 3.14),   # WP 7
+            (24.856, 5.010, 3.14),   # WP 8
+            (24.934, 10.432, 3.14),  # WP 9
+            (25.484, 15.262, 3.14)   # WP 10
+        ]
+        if self.robot_y is None:
+            rospy.logerr("Cannot enter room, robot_y is None")
+            return
+            
+        best_pt = min(target_pts, key=lambda pt: abs(self.robot_y - pt[1]))
+        rospy.loginfo("Entering closest target room at x=%.2f, y=%.2f", best_pt[0], best_pt[1])
+        
+        goal = self.build_goal(best_pt[0], best_pt[1], best_pt[2])
+        self.mb_client.send_goal(goal)
+        self.mb_client.wait_for_result(rospy.Duration(60.0))
+        rospy.loginfo("Finished room entry.")
 
 if __name__ == "__main__":
     try:
