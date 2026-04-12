@@ -69,8 +69,8 @@ This repo is a ROS workspace containing the following ROS packages:
 * `interactive_tools`: customized tools to interact with Gazebo and the robot
 * `jackal_description`: modified Jackal robot model descriptions
 * `me5413_world`: main package containing the Gazebo world, maps, perception nodes, and launch files
-* `teleop_twist_keyboard`
-* `third party`
+* `teleop_twist_keyboard`: Use keyboard to manually control the Jackal robot
+* `third_party`: mapping package for cartographer
 * `me5413_navigation`: navigation package for localization, planning, waypoint patrol, and evaluation
 * `cartographer`: mapping package for cartographer
 
