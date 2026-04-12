@@ -135,7 +135,7 @@ There are two sources of models needed:
 
 ```bash
 # Workspace
-cd ~/ME5413_Final_Project
+cd ~/ME5413_group2
 
 # Build
 catkin_make_isolated --install
