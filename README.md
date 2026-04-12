@@ -6,12 +6,6 @@
 >
 > Github link for this repo: https://github.com/GeorginaWu27/ME5413_group2
 
-## Demo video
-
-## Demo Video
-
-[Watch or download the demo video](./media/demo_final.mp4)
-
 ## Tasks
 
 ![task_image](src/me5413_world/media/overview2526.png)
@@ -307,5 +301,6 @@ cp /tmp/amcl_plots/* ~/ME5413_Final_Project/plots/
 ## License
 
 The [ME5413_Final_Project](https://github.com/NUS-Advanced-Robotics-Centre/ME5413_Final_Project) is released under the [MIT License](https://github.com/NUS-Advanced-Robotics-Centre/ME5413_Final_Project/blob/main/LICENSE).
+
 
 
