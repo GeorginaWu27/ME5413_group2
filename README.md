@@ -3,10 +3,14 @@
 > Group Members: [WU ZIHAN](https://github.com/GeorginaWu27), [FENG YIXUAN](https://github.com/yixuanfeng15-lgtm), [QIAN YIWEI](https://github.com/qian-yiwei), and [WU YIFEI](https://github.com/wyffei)
 > 
 > Please find the main project at: https://github.com/NUS-Advanced-Robotics-Centre/ME5413_Final_Project
+>
+> Github link for this repo: https://github.com/GeorginaWu27/ME5413_group2
 
 ## Demo video
 
-[Watch or download the demo video](./media/success.mp4)
+## Demo Video
+
+[Watch or download the demo video](./media/demo_final.mp4)
 
 ## Tasks
 
@@ -177,7 +181,7 @@ This launch file will:
 
 ### 2. Mapping
 
-Mapping is optional for the final autonomous run because a map file is already provided.
+Mapping is optional for the final autonomous run because a map file is already provided at (https://drive.google.com/file/d/16jMduRXgbkZkFMURzpQAJd0ris-tp8EG/view?usp=sharing).
 
 If you want to build or update the map manually, after launching **Step 1**, open a new terminal and run:
 
@@ -303,4 +307,5 @@ cp /tmp/amcl_plots/* ~/ME5413_Final_Project/plots/
 ## License
 
 The [ME5413_Final_Project](https://github.com/NUS-Advanced-Robotics-Centre/ME5413_Final_Project) is released under the [MIT License](https://github.com/NUS-Advanced-Robotics-Centre/ME5413_Final_Project/blob/main/LICENSE).
+
 
