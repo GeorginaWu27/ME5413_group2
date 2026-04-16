@@ -135,7 +135,7 @@ There are two sources of models needed:
 
   ```bash
   # Copy the customized models into the ~/.gazebo/models directory
-  cp -r ~/ME5413_Final_Project/src/me5413_world/models/* ~/.gazebo/models/
+  cp -r ~/ME5413_group2/src/me5413_world/models/* ~/.gazebo/models/
   ```
 
 ## Usage
@@ -181,7 +181,7 @@ If you want to build or update the map manually, after launching **Step 1**, ope
 
 **Steps to build cartographer**
 ```bash
-cd ~/ME5413_Final_Project
+cd ~/ME5413_group2
 rosdep install --from-paths src --ignore-src -r -y
 
 cd src/third_party/cartographer/scripts
@@ -198,17 +198,17 @@ You can either drive the robot in Gazebo using the keyboard (see the terminal ou
 **Manually**
 ```bash
 #In terminal 1:Launch the world
-cd ~/ME5413_Final_Project
+cd ~/ME5413_group2
 source devel_isolated/setup.bash
 roslaunch me5413_world world.launch
 
 #In terminal 2:Launch keyboard control
-cd ~/ME5413_Final_Project
+cd ~/ME5413_group2
 source devel_isolated/setup.bash
 roslaunch me5413_world manual.launch
 
 #In terminal 3:Launch cartographer
-cd ~/ME5413_Final_Project
+cd ~/ME5413_group2
 source devel_isolated/setup.bash
 roslaunch me5413_world cartographer_2d_IMU_ODOM_LI.launch
 ```
@@ -241,7 +241,7 @@ rosrun map_server map_saver -f my_map map:=/map
 After launching **Step 1**, open a second terminal and run:
 
 ```bash
-cd ~/ME5413_Final_Project
+cd ~/ME5413_group2
 source devel_isolated/setup.bash
 roslaunch me5413_world navigation.launch
 ```
@@ -278,7 +278,7 @@ rosrun me5413_navigation amcl_truth_eval.py \
   _save_path:=/tmp/amcl_eval.csv
 
 # Visualize the evaluation result
-python3 ~/ME5413_Final_Project/src/me5413_navigation/scripts/amcl_eval_plot.py \
+python3 ~/ME5413_group2/src/me5413_navigation/scripts/amcl_eval_plot.py \
   --csv /tmp/amcl_eval.csv \
   --outdir /tmp/amcl_plots \
   --normal-only
@@ -287,8 +287,8 @@ python3 ~/ME5413_Final_Project/src/me5413_navigation/scripts/amcl_eval_plot.py \
 If needed, copy the generated results to your project directory:
 
 ```bash
-cp /tmp/amcl_eval.csv ~/ME5413_Final_Project/
-cp /tmp/amcl_plots/* ~/ME5413_Final_Project/plots/
+cp /tmp/amcl_eval.csv ~/ME5413_group2/
+cp /tmp/amcl_plots/* ~/ME5413_group2/plots/
 ```
 
 ## Notes

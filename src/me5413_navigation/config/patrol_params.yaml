@@ -30,8 +30,8 @@ waypoints:
   - {name: "p7", x: 12.762818336486816, y: -4.557191848754883, yaw: -0.0737, tolerance: 3.14, required: false, timeout: 30.0}
   - {name: "p8", x: 30.396047592163086, y: -4.341438293457031, yaw: 0, tolerance: 3.14, required: false, timeout: 30.0}
   # - {name: "intersection", x: 34.483238220214844, y: 2.483964443206787, yaw: -3.11, alt_x: 34.71377944946289, alt_y: 12.340554237365723, alt_yaw: 3.09, tolerance: 2.0, required: true, timeout: 60.0}
-  - {name: "intersection", x: 34.71377944946289, y: 12.340554237365723, yaw:  3.09, alt_x: 34.483238220214844, alt_y: 2.483964443206787, alt_yaw: -3.11, tolerance: 1.5, required: true, timeout: 60.0}
-  - {name: "obs_room_A", x: 30.598, y: 0.331, yaw: -3.09, tolerance: 0.4, yaw_tolerance: 0.15, required: true, timeout: 40.0, delay: 5.0}
-  - {name: "obs_room_B", x: 30.031, y: 4.903, yaw: 3.09, tolerance: 0.4, yaw_tolerance: 0.15, required: true, timeout: 40.0, delay: 5.0}
-  - {name: "obs_room_C", x: 31.166, y: 10.122, yaw: -3.09, tolerance: 0.4, yaw_tolerance: 0.15, required: true, timeout: 40.0, delay: 5.0}
-  - {name: "obs_room_D", x: 31.056, y: 15.522, yaw: 3.13, tolerance: 0.4, yaw_tolerance: 0.15, required: true, timeout: 40.0, delay: 5.0}
+  - {name: "intersection", x: 33.71377944946289, y: 12.340554237365723, yaw:  3.09, alt_x: 33.483238220214844, alt_y: 2.483964443206787, alt_yaw: -3.11, tolerance: 1.5, required: true, timeout: 60.0}
+  - {name: "obs_room_A", x: 31.500, y: 0.331, yaw: -3.09, tolerance: 0.4, yaw_tolerance: 0.15, required: true, timeout: 40.0, delay: 1.0}
+  - {name: "obs_room_B", x: 31.400, y: 4.903, yaw: 3.09, tolerance: 0.4, yaw_tolerance: 0.15, required: true, timeout: 40.0, delay: 1.0}
+  - {name: "obs_room_C", x: 31.300, y: 10.000, yaw: -3.09, tolerance: 0.4, yaw_tolerance: 0.15, required: true, timeout: 40.0, delay: 1.0}
+  - {name: "obs_room_D", x: 31.200, y: 15.480, yaw: 3.13, tolerance: 0.4, yaw_tolerance: 0.15, required: true, timeout: 40.0, delay: 5.0}

@@ -69,6 +69,11 @@ class PatrolWaypointsNode(object):
         self.enter_room_triggered = False
         rospy.Subscriber("/second_floor/enter_room_trigger", Bool, self.enter_trigger_cb, queue_size=1)
 
+        self.cmd_unblock_topic = rospy.get_param("~cmd_unblock_topic", "/cmd_unblock")
+        self.intersection_unblock_triggered = False
+        self.current_wp_name = ""
+        rospy.Subscriber(self.cmd_unblock_topic, Bool, self.cmd_unblock_cb, queue_size=1)
+
         # move_base action client
         rospy.loginfo("Waiting for move_base action server...")
         self.mb_client = actionlib.SimpleActionClient("move_base", MoveBaseAction)
@@ -108,6 +113,12 @@ class PatrolWaypointsNode(object):
     def slope_mode_cb(self, msg):
         self.slope_mode_value = msg.data
         self.slope_mode_enabled = (msg.data == 1)   # 1 == SLOPE_MODE
+
+    def cmd_unblock_cb(self, msg):
+        if msg.data:
+            if self.current_wp_name == "intersection":
+                rospy.loginfo("Visual unblock signal received at intersection.")
+                self.intersection_unblock_triggered = True
 
     # =========================================================
     # Utility functions
@@ -248,6 +259,11 @@ class PatrolWaypointsNode(object):
                 self.mb_client.cancel_goal()
                 return False, "slope_mode"
 
+            if self.intersection_unblock_triggered and self.current_wp_name == "intersection":
+                rospy.logwarn("Visual unblock triggered for intersection. Switching path.")
+                self.mb_client.cancel_goal()
+                return False, "visual_unblock"
+
             elapsed = (rospy.Time.now() - start).to_sec()
 
             # Near the original reference point.
@@ -302,6 +318,9 @@ class PatrolWaypointsNode(object):
 
     def handle_one_waypoint(self, wp):
         name = wp["name"]
+        self.current_wp_name = name
+        self.intersection_unblock_triggered = False
+
         nominal_x = wp["x"]
         nominal_y = wp["y"]
         nominal_yaw = wp["yaw"]
@@ -318,11 +337,12 @@ class PatrolWaypointsNode(object):
             return True
 
         if wp.get("alt_x") is not None and wp.get("alt_y") is not None:
-            if not self.is_pose_free(nominal_x, nominal_y):
-                rospy.logwarn("[%s] Primary point blocked in costmap. Switching to alt: (%.2f, %.2f)", name, wp["alt_x"], wp["alt_y"])
-                nominal_x = wp["alt_x"]
-                nominal_y = wp["alt_y"]
-                nominal_yaw = wp["alt_yaw"]
+            if name != "intersection":
+                if not self.is_pose_free(nominal_x, nominal_y):
+                    rospy.logwarn("[%s] Primary point blocked in costmap. Switching to alt: (%.2f, %.2f)", name, wp["alt_x"], wp["alt_y"])
+                    nominal_x = wp["alt_x"]
+                    nominal_y = wp["alt_y"]
+                    nominal_yaw = wp["alt_yaw"]
 
         for i in range(self.retry_num + 1):
             rospy.loginfo("[%s] attempt %d / %d", name, i + 1, self.retry_num + 1)
@@ -354,12 +374,21 @@ class PatrolWaypointsNode(object):
                 rospy.loginfo("[%s] success: %s", name, reason)
                 return True
             else:
-                if reason in ["move_base_failed", "timeout"] and wp.get("alt_x") is not None and wp.get("alt_y") is not None:
+                switch_to_alt = False
+                if name == "intersection":
+                    if reason == "visual_unblock" and wp.get("alt_x") is not None and wp.get("alt_y") is not None:
+                        switch_to_alt = True
+                else:
+                    if reason in ["move_base_failed", "timeout"] and wp.get("alt_x") is not None and wp.get("alt_y") is not None:
+                        switch_to_alt = True
+                
+                if switch_to_alt:
                     if abs(nominal_x - wp["alt_x"]) > 1e-3:
-                        rospy.logwarn("[%s] Navigation failed. Switching to alt waypoint.", name)
+                        rospy.logwarn("[%s] Navigation failed or unblock seen. Switching to alt waypoint.", name)
                         nominal_x = wp["alt_x"]
                         nominal_y = wp["alt_y"]
                         nominal_yaw = wp["alt_yaw"]
+                        self.intersection_unblock_triggered = False
                         continue
                 if reason == "slope_mode":
                     rospy.logwarn("[%s] terminated by slope mode.", name)
