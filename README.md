@@ -181,14 +181,10 @@ If you want to build or update the map manually, after launching **Step 1**, ope
 
 **Steps to build cartographer**
 ```bash
-cd ~/ME5413_group2
-rosdep install --from-paths src --ignore-src -r -y
+cd ME5413_group2/src/me5413_world/scripts
+#You need to update the paths in the two .sh scripts through **VIM** to match your actual absolute paths.
 
-cd src/third_party/cartographer/scripts
-#You may need to update the paths in the two .sh scripts to match your actual absolute paths.
-./install_abseil.sh
-
-#Cartographer use catkin_make_isolated to compile
+#Cartographer use "catkin_make_isolated --install" to compile
 catkin_make_isolated --install
 #Remove install_isolated
 ```
